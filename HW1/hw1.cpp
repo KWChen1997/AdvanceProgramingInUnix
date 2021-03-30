@@ -244,9 +244,9 @@ void getInfo(ProcData *proc){
 	memset(result,0,sizeof(result));
 	sprintf(path,"%s/%s",proc->path, "fd");
 	int c;
-	long int inode;
+	unsigned long int inode;
 	regex eFile("[0-9]+");
-	regex eType("^([^:]+):(.*)$");
+	regex eType("^(pipe|socket|anon_inode):(.*)$");
 	regex eFD("(\\d{2})$");
 	char fullType[256];
 	char name[256];
@@ -272,12 +272,14 @@ void getInfo(ProcData *proc){
 			memset(name,0,sizeof(name));
 			if(regex_match(dirp->d_name,eFile)){
 				sprintf(path,"%s/fd/%s",proc->path,dirp->d_name);
+				
+				struct stat fs;
+				c = stat(path,&fs);
+				inode = fs.st_ino;
+
 				c = readlink(path,buf,sizeof(buf));
 				buf[c] = '\0';
-								struct stat fs;
-				c = stat(buf,&fs);
-				if(c < 0){
-					regex_search(buf,match,eType);
+				if(regex_search(buf,match,eType)){
 					memcpy(fullType,match[1].first,match[1].second - match[1].first);
 					memcpy(name,match[2].first,match[2].second - match[2].first);
 					if(strncmp(fullType,"pipe",4) == 0){
@@ -290,16 +292,19 @@ void getInfo(ProcData *proc){
 						inode = atoi(name+1);
 						strncpy(name,buf,256);
 					}
-					else{
-						inode = 12123lu;
+					else if(strncmp(fullType,"anon_inode",10) == 0){
 						strcpy(type,"unknown");
+					}
+					else{
+						strcpy(type,"unknown");
+						inode = atoi(name+1);
+						strncpy(name,buf,256);
 					}
 					
 				}
 				else{
 					strncpy(name,buf,256);
 					checkType(fs.st_mode,type);
-					inode = fs.st_ino;
 				}
 
 				// get fd flags
