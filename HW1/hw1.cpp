@@ -65,7 +65,7 @@ int main(int argc, char *argv[]){
 	char CLIFilter[1024] = {0};
 	char typeFilter[1024] = {0};
 	char fileFilter[1024] = {0};
-	regex eTypeFilter("(REG|CHR|DIR|FIFO|SOCK)");
+	regex eTypeFilter("(REG|CHR|DIR|FIFO|SOCK|unknown)");
 	
 	while((opt = getopt(argc, argv, "ctf")) != -1){
 		switch(opt){
@@ -198,7 +198,7 @@ void getInfo(ProcData *proc, const char *fd){
 			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s%s", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path, " (readlink: Permission denied)\n");
 		}
 		else{
-			sprintf(result,"%-36s%5s%18s%5s%10s%13s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "");
+			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path);
 		}
 	}
 	else{
@@ -208,6 +208,22 @@ void getInfo(ProcData *proc, const char *fd){
 		checkType(fs.st_mode, type);
 		sprintf(result,format, proc->cmd, proc->pid, proc->usr, fd, type, fs.st_ino,buf);
 	}
+	/*
+	struct stat fs;
+	c = stat(path, &fs);
+	if(c == -1){
+		if(errno == EACCES){
+			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s%s", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path, " (readlink: Permission denied)\n");
+		}
+		else{
+			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path);
+		}
+	}
+	else{
+		checkType(fs.st_mode, type);
+		sprintf(result,format, proc->cmd, proc->pid, proc->usr, fd, type, fs.st_ino, path);
+	}
+	*/
 
 	output.push_back(string(result));
 	return;
@@ -285,12 +301,10 @@ void getInfo(ProcData *proc){
 					if(strncmp(fullType,"pipe",4) == 0){
 						strcpy(type,"FIFO");
 						inode = atoi(name+1);
-						strncpy(name,buf,256);
 					}
 					else if(strncmp(fullType,"socket",6) == 0){
 						strcpy(type,"SOCK");
 						inode = atoi(name+1);
-						strncpy(name,buf,256);
 					}
 					else if(strncmp(fullType,"anon_inode",10) == 0){
 						strcpy(type,"unknown");
@@ -298,9 +312,8 @@ void getInfo(ProcData *proc){
 					else{
 						strcpy(type,"unknown");
 						inode = atoi(name+1);
-						strncpy(name,buf,256);
 					}
-					
+					strncpy(name,buf,256);
 				}
 				else{
 					strncpy(name,buf,256);
@@ -352,15 +365,16 @@ void getMaps(ProcData *proc){
 	char buf[1024];
 	ifstream ifs(path,ifstream::in);
 
-	unordered_set<string> m;
+	unordered_set<unsigned long> m;
 	char memName[256];
 	ino_t inode;
+	/*
 	while(ifs.getline(buf,1024,'\n')){
 		sscanf(buf,"%*s %*s %*s %lu %*s",&inode);
 		if(inode == 0)
 			break;
 	}
-
+	*/
 	while(ifs.getline(buf,1024,'\n')){
 		memset(memName,0,sizeof(memName));
 		deleted = false;
@@ -368,16 +382,15 @@ void getMaps(ProcData *proc){
 		if(regex_match(buf,eDel)){
 			deleted = true;
 		}
-		string tmp(memName);
-		if(inode == 0lu || m.find(tmp) != m.end()){
+		if(inode == 0lu || m.find(inode) != m.end()){
 			continue;
 		}
-		m.insert(tmp);
+		m.insert(inode);
 		struct stat fs;
 		stat(memName,&fs);
 		checkType(fs.st_mode,type);
 		if(deleted){
-			sprintf(result,"%-36s%5s%18s%5s%10s%10lu %s (deleted)\n",proc->cmd, proc->pid, proc->usr, "DEL",type,inode,memName);
+			sprintf(result,"%-36s%5s%18s%5s%10s%10lu %s (deleted)\n",proc->cmd, proc->pid, proc->usr, "del","unknown",inode,memName);
 		}
 		else{
 			sprintf(result,"%-36s%5s%18s%5s%10s%10lu %s\n",proc->cmd, proc->pid, proc->usr, "mem",type,inode,memName);
