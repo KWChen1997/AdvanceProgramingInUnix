@@ -257,6 +257,7 @@ void getInfo(ProcData *proc){
 
 	if(dp == NULL && errno == EACCES){
 		sprintf(result,"%-36s%7s%18s%5s%10s%13s %s %s\n",proc->cmd, proc->pid, proc->usr, "NOFD","","",path,"(opendir: Permission denied)");
+		strcpy(type,"");
 		cmdList.push_back(string(proc->cmd));
 		typeList.push_back(string(type));
 		nameList.push_back(string(path));
