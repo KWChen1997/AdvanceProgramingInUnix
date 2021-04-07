@@ -281,17 +281,16 @@ void getInfo(ProcData *proc){
 	char path[1024];
 	char type[10];
 	char result[1024];
+	char name[256] = "";
 	cmatch match;
 	memset(path,0,sizeof(path));
 	memset(result,0,sizeof(result));
 	sprintf(path,"%s/%s",proc->path, "fd");
 	int c;
-	unsigned long int inode;
+	regex eDel(".*deleted\\)$");
 	regex eFile("[0-9]+");
-	regex eType("^(pipe|socket|anon_inode):(.*)$");
 	regex eFD("(\\d{2})$");
-	char fullType[256];
-	char name[256];
+	unsigned long int inode;
 	char fdbytes[3];
 	char fdFlag;
 
@@ -313,7 +312,6 @@ void getInfo(ProcData *proc){
 		while((dirp = readdir(dp)) != NULL){
 			inode = 0;
 			memset(type,0,sizeof(type));
-			memset(fullType,0,sizeof(fullType));
 			memset(name,0,sizeof(name));
 			if(regex_match(dirp->d_name,eFile)){
 				sprintf(path,"%s/fd/%s",proc->path,dirp->d_name);
@@ -326,6 +324,9 @@ void getInfo(ProcData *proc){
 				c = readlink(path,buf,sizeof(buf));
 				buf[c] = '\0';
 				strncpy(name,buf,256);
+				if(regex_match(name,eDel)){
+					strcpy(type,"unknown");
+				}
 				/*if(regex_search(buf,match,eType)){
 					memcpy(fullType,match[1].first,match[1].second - match[1].first);
 					memcpy(name,match[2].first,match[2].second - match[2].first);
@@ -378,6 +379,7 @@ void getInfo(ProcData *proc){
 				output.push_back(string(result));
 			}
 		}
+		closedir(dp);
 	}
 
 	return;
@@ -429,7 +431,6 @@ void getMaps(ProcData *proc){
 			sprintf(result,"%-36s%7s%18s%5s%10s%13lu %s (deleted)\n",proc->cmd, proc->pid, proc->usr, "del","unknown",inode,memName);
 		}
 		else{
-			strcpy(type, "mem");
 			sprintf(result,"%-36s%7s%18s%5s%10s%13lu %s\n",proc->cmd, proc->pid, proc->usr, "mem",type,inode,memName);
 		}
 		cmdList.push_back(string(proc->cmd));
