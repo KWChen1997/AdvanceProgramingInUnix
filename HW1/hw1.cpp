@@ -59,7 +59,6 @@ int main(int argc, char *argv[]){
 	 *  -t: type filter
 	 *  -f: file name filter
 	 *
-	 *  todo: parse the filter arguements
 	 *  */
 	int opt;
 	bool CLIFlag = 0;
@@ -94,15 +93,12 @@ int main(int argc, char *argv[]){
 		}
 	}
 	
-	//printf("CLIFlag: %s\nfilter: %s\ntypeFlag: %s\nfilter: %s\nfileFlag: %s\nfilter: %s\n", boolString(CLIFlag),CLIFilter, boolString(typeFlag),typeFilter, boolString(fileFlag), fileFilter);
-
 	/*
 	 * read directory of /proc/
 	 *
 	 * */
 
 	chdir("/proc/");
-	int count = 0;
 	DIR *dp;
 	struct dirent *dirp;
 	dp = opendir("/proc");
@@ -113,12 +109,9 @@ int main(int argc, char *argv[]){
 	}
 	else{
 		regex reg("[0-9]+");
-		count = 0;
-		while((dirp = readdir(dp)) != NULL && count < 10){
+		while((dirp = readdir(dp)) != NULL){
 			if(regex_match(dirp->d_name,reg)){
-				//printf("%s:\n", dirp->d_name);
 				getProcData(dirp->d_name);
-				//count++;
 			}
 		}
 		closedir(dp);
@@ -127,9 +120,6 @@ int main(int argc, char *argv[]){
 	chdir(cwd);
 	
 	// print out results
-	char cmd[256];
-	char type[256];
-	char filename[256];
 	bool valid;
 	int l = output.size();
 
@@ -142,30 +132,12 @@ int main(int argc, char *argv[]){
 		valid = (!CLIFlag || regex_match(cmdList[i],eCLIFilter)) &&
 			(!typeFlag || regex_match(typeList[i],eTypeFilter)) &&
 			(!fileFlag || regex_match(nameList[i],eFileFilter));
+
 		if(valid)
 			printf("%s",&output[i][0]);
 
-
 	}
-/*
-	for(auto line:output){
-		valid = true;
-		memset(cmd,0,sizeof(cmd));
-		memset(type,0,sizeof(type));
-		memset(filename,0,sizeof(filename));
-		regex eCLIFilter(CLIFilter);
-		regex eTypeFilter(typeFilter);
-		regex eFileFilter(fileFilter);
 
-		sscanf(&line[0],"%s %*s %*s %*s %s %*s %s",cmd,type,filename);
-
-		valid = (!CLIFlag || regex_match(cmd,eCLIFilter)) &&
-			(!typeFlag || regex_match(type,eTypeFilter)) &&
-			(!fileFlag || regex_match(filename,eFileFilter));
-		if(valid)
-			printf("%s",&line[0]);
-	}
-*/
 	return 0;
 }
 
@@ -180,7 +152,6 @@ void getProcData(const string pid){
 	
 
 	// get cwd info
-	//sprintf(path,"%s%s%s","/proc/",&pid[0],"/cwd");
 	getInfo(&proc,"cwd");
 
 	// get root info
@@ -195,7 +166,6 @@ void getProcData(const string pid){
 	// get fd info
 	getInfo(&proc);
 
-	// get del info	
 
 	chdir("../");
 
@@ -231,23 +201,7 @@ void getInfo(ProcData *proc, const char *fd){
 		checkType(fs.st_mode, type);
 		sprintf(result,format, proc->cmd, proc->pid, proc->usr, fd, type, fs.st_ino,buf);
 	}
-	/*
-	struct stat fs;
-	c = stat(path, &fs);
-	if(c == -1){
-		if(errno == EACCES){
-			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s%s", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path, " (readlink: Permission denied)\n");
-		}
-		else{
-			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path);
-		}
-	}
-	else{
-		checkType(fs.st_mode, type);
-		sprintf(result,format, proc->cmd, proc->pid, proc->usr, fd, type, fs.st_ino, path);
-	}
-	*/
-
+	
 	cmdList.push_back(string(proc->cmd));
 	typeList.push_back(string(type));
 	nameList.push_back(string(buf));
@@ -295,7 +249,7 @@ void getInfo(ProcData *proc){
 	char fdFlag;
 
 	char buf[1024];
-	c = access(path, R_OK);
+	//c = access(path, R_OK);
 	DIR *dp;
 	struct dirent *dirp;
 
@@ -327,32 +281,7 @@ void getInfo(ProcData *proc){
 				if(regex_match(name,eDel)){
 					strcpy(type,"unknown");
 				}
-				/*if(regex_search(buf,match,eType)){
-					memcpy(fullType,match[1].first,match[1].second - match[1].first);
-					memcpy(name,match[2].first,match[2].second - match[2].first);
-					if(strncmp(fullType,"pipe",4) == 0){
-						strcpy(type,"FIFO");
-						inode = atoi(name+1);
-					}
-					else if(strncmp(fullType,"socket",6) == 0){
-						strcpy(type,"SOCK");
-						inode = atoi(name+1);
-					}
-					else if(strncmp(fullType,"anon_inode",10) == 0){
-						strcpy(type,"unknown");
-					}
-					else{
-						strcpy(type,"unknown");
-						inode = atoi(name+1);
-					}
-					strncpy(name,buf,256);
-				}
-				else{
-					strncpy(name,buf,256);
-					checkType(fs.st_mode,type);
-				}
-				*/
-
+				
 				// get fd flags
 				sprintf(path,"%s/fdinfo/%s",proc->path,dirp->d_name);
 				ifstream ifs(path,ifstream::in);
@@ -405,13 +334,7 @@ void getMaps(ProcData *proc){
 	unordered_set<unsigned long> m;
 	char memName[256];
 	ino_t inode;
-	/*
-	while(ifs.getline(buf,1024,'\n')){
-		sscanf(buf,"%*s %*s %*s %lu %*s",&inode);
-		if(inode == 0)
-			break;
-	}
-	*/
+	
 	while(ifs.getline(buf,1024,'\n')){
 		memset(memName,0,sizeof(memName));
 		deleted = false;
