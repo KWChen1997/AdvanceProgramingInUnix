@@ -241,7 +241,7 @@ void getInfo(ProcData *proc){
 	memset(result,0,sizeof(result));
 	sprintf(path,"%s/%s",proc->path, "fd");
 	int c;
-	regex eDel(".*deleted\\)$");
+	regex eDel(".*(\\(deleted\\))$");
 	regex eFile("[0-9]+");
 	regex eFD("(\\d{2})$");
 	unsigned long int inode;
@@ -279,9 +279,7 @@ void getInfo(ProcData *proc){
 				c = readlink(path,buf,sizeof(buf));
 				buf[c] = '\0';
 				strncpy(name,buf,256);
-				if(regex_match(name,eDel)){
-					strcpy(type,"unknown");
-				}
+				
 				
 				// get fd flags
 				sprintf(path,"%s/fdinfo/%s",proc->path,dirp->d_name);
@@ -302,10 +300,21 @@ void getInfo(ProcData *proc){
 				else if(strncmp(fdbytes,"02",2) == 0){
 					fdFlag = 'u';
 				}
+				
+				if(regex_search(name,match,eDel)){
+					strcpy(type,"unknown");
+					strcpy(buf,name);
+					buf[match[1].first-match[0].first]='\0';
+				}
+				else{
+					strcpy(buf,name);
+				}
+
+
 				sprintf(result,"%-36s%7s%18s%5s%c%9s%13lu %s\n",proc->cmd, proc->pid, proc->usr,dirp->d_name,fdFlag,type,inode,name);
 				cmdList.push_back(string(proc->cmd));
 				typeList.push_back(string(type));
-				nameList.push_back(string(name));
+				nameList.push_back(string(buf));
 				output.push_back(string(result));
 			}
 		}
