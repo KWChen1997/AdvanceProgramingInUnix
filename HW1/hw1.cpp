@@ -67,7 +67,7 @@ int main(int argc, char *argv[]){
 	char CLIFilter[1024] = {0};
 	char typeFilter[1024] = {0};
 	char fileFilter[1024] = {0};
-	regex eTypeFilter("(REG|CHR|DIR|FIFO|SOCK|unknown)");
+	regex eType("(REG|CHR|DIR|FIFO|SOCK|unknown)");
 	
 	while((opt = getopt(argc, argv, "ctf")) != -1){
 		switch(opt){
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]){
 			case 't':
 				typeFlag = true;
 				strcpy(typeFilter,argv[optind]);
-				if(!regex_match(typeFilter,eTypeFilter)){
+				if(!regex_match(typeFilter,eType)){
 					printf("Invalid TYPE option\n");
 					return -1;
 				}
@@ -122,14 +122,14 @@ int main(int argc, char *argv[]){
 	// print out results
 	bool valid;
 	int l = output.size();
+	regex eCLIFilter(CLIFilter);
+	regex eTypeFilter(typeFilter);
+	regex eFileFilter(fileFilter);
+		
 
 	for(int i = 0; i < l; i++){
 		valid = true;
-		regex eCLIFilter(CLIFilter);
-		regex eTypeFilter(typeFilter);
-		regex eFileFilter(fileFilter);
-		
-		valid = (!CLIFlag || regex_match(cmdList[i],eCLIFilter)) &&
+				valid = (!CLIFlag || regex_match(cmdList[i],eCLIFilter)) &&
 			(!typeFlag || regex_match(typeList[i],eTypeFilter)) &&
 			(!fileFlag || regex_match(nameList[i],eFileFilter));
 
