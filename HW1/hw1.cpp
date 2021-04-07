@@ -32,13 +32,16 @@ using namespace std;
 class ProcData{
 public:
 	char cmd[256];
-	char pid[6];
+	char pid[20];
 	char usr[256];
 	char *path;
 };
 
-static const char format[] = "%-36s%5s%18s%5s%10s%10lu %s\n";
+static const char format[] = "%-36s%7s%18s%5s%10s%13lu %s\n";
 vector<string> output;
+vector<string> cmdList;
+vector<string> typeList;
+vector<string> nameList;
 
 void getProcData(const string pid);
 void getCmdAndUsrname(const char *cwd, char *command, char *username);
@@ -103,7 +106,7 @@ int main(int argc, char *argv[]){
 	DIR *dp;
 	struct dirent *dirp;
 	dp = opendir("/proc");
-	printf("%-36s%5s%18s%5s%10s%13s %s\n","COMMAND","PID","USER","FD","TYPE","NODE","NAME");
+	printf("%-36s%7s%18s%5s%10s%13s %s\n","COMMAND","PID","USER","FD","TYPE","NODE","NAME");
 	if(dp == NULL){
 		printf("failed to open directory\n");
 		return 1;
@@ -128,6 +131,23 @@ int main(int argc, char *argv[]){
 	char type[256];
 	char filename[256];
 	bool valid;
+	int l = output.size();
+
+	for(int i = 0; i < l; i++){
+		valid = true;
+		regex eCLIFilter(CLIFilter);
+		regex eTypeFilter(typeFilter);
+		regex eFileFilter(fileFilter);
+		
+		valid = (!CLIFlag || regex_match(cmdList[i],eCLIFilter)) &&
+			(!typeFlag || regex_match(typeList[i],eTypeFilter)) &&
+			(!fileFlag || regex_match(nameList[i],eFileFilter));
+		if(valid)
+			printf("%s",&output[i][0]);
+
+
+	}
+/*
 	for(auto line:output){
 		valid = true;
 		memset(cmd,0,sizeof(cmd));
@@ -145,7 +165,7 @@ int main(int argc, char *argv[]){
 		if(valid)
 			printf("%s",&line[0]);
 	}
-
+*/
 	return 0;
 }
 
@@ -195,11 +215,14 @@ void getInfo(ProcData *proc, const char *fd){
 	c = readlink(path, buf, sizeof(buf));
 	if(c == -1){
 		if(errno == EACCES){
-			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s%s", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path, " (readlink: Permission denied)\n");
+			strcpy(type, "unknown");
+			sprintf(result,"%-36s%7s%18s%5s%10s%13s %s%s", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path, " (readlink: Permission denied)\n");
 		}
 		else{
-			sprintf(result,"%-36s%5s%18s%5s%10s%13s %s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path);
+			strcpy(type, "unknown");
+			sprintf(result,"%-36s%7s%18s%5s%10s%13s %s\n", proc->cmd, proc->pid, proc->usr, fd,"unknown", "", path);
 		}
+		strcpy(buf,path);
 	}
 	else{
 		buf[c] = '\0';
@@ -225,6 +248,9 @@ void getInfo(ProcData *proc, const char *fd){
 	}
 	*/
 
+	cmdList.push_back(string(proc->cmd));
+	typeList.push_back(string(type));
+	nameList.push_back(string(buf));
 	output.push_back(string(result));
 	return;
 }
@@ -277,7 +303,10 @@ void getInfo(ProcData *proc){
 	dp = opendir(path);
 
 	if(dp == NULL && errno == EACCES){
-		sprintf(result,"%-36s%5s%18s%5s%10s%13s %s %s\n",proc->cmd, proc->pid, proc->usr, "NOFD","","",path,"(opendir: Permission denied)");
+		sprintf(result,"%-36s%7s%18s%5s%10s%13s %s %s\n",proc->cmd, proc->pid, proc->usr, "NOFD","","",path,"(opendir: Permission denied)");
+		cmdList.push_back(string(proc->cmd));
+		typeList.push_back(string(type));
+		nameList.push_back(string(path));
 		output.push_back(string(result));
 	}
 	else{
@@ -292,10 +321,12 @@ void getInfo(ProcData *proc){
 				struct stat fs;
 				c = stat(path,&fs);
 				inode = fs.st_ino;
-
+				checkType(fs.st_mode,type);
+				
 				c = readlink(path,buf,sizeof(buf));
 				buf[c] = '\0';
-				if(regex_search(buf,match,eType)){
+				strncpy(name,buf,256);
+				/*if(regex_search(buf,match,eType)){
 					memcpy(fullType,match[1].first,match[1].second - match[1].first);
 					memcpy(name,match[2].first,match[2].second - match[2].first);
 					if(strncmp(fullType,"pipe",4) == 0){
@@ -319,6 +350,7 @@ void getInfo(ProcData *proc){
 					strncpy(name,buf,256);
 					checkType(fs.st_mode,type);
 				}
+				*/
 
 				// get fd flags
 				sprintf(path,"%s/fdinfo/%s",proc->path,dirp->d_name);
@@ -339,7 +371,10 @@ void getInfo(ProcData *proc){
 				else if(strncmp(fdbytes,"02",2) == 0){
 					fdFlag = 'u';
 				}
-				sprintf(result,"%-36s%5s%18s%5s%c%9s%13lu %s\n",proc->cmd, proc->pid, proc->usr,dirp->d_name,fdFlag,type,inode,name);
+				sprintf(result,"%-36s%7s%18s%5s%c%9s%13lu %s\n",proc->cmd, proc->pid, proc->usr,dirp->d_name,fdFlag,type,inode,name);
+				cmdList.push_back(string(proc->cmd));
+				typeList.push_back(string(type));
+				nameList.push_back(string(name));
 				output.push_back(string(result));
 			}
 		}
@@ -390,11 +425,16 @@ void getMaps(ProcData *proc){
 		stat(memName,&fs);
 		checkType(fs.st_mode,type);
 		if(deleted){
-			sprintf(result,"%-36s%5s%18s%5s%10s%10lu %s (deleted)\n",proc->cmd, proc->pid, proc->usr, "del","unknown",inode,memName);
+			strcpy(type, "unknown");
+			sprintf(result,"%-36s%7s%18s%5s%10s%13lu %s (deleted)\n",proc->cmd, proc->pid, proc->usr, "del","unknown",inode,memName);
 		}
 		else{
-			sprintf(result,"%-36s%5s%18s%5s%10s%10lu %s\n",proc->cmd, proc->pid, proc->usr, "mem",type,inode,memName);
+			strcpy(type, "mem");
+			sprintf(result,"%-36s%7s%18s%5s%10s%13lu %s\n",proc->cmd, proc->pid, proc->usr, "mem",type,inode,memName);
 		}
+		cmdList.push_back(string(proc->cmd));
+		typeList.push_back(string(type));
+		nameList.push_back(string(memName));
 		output.push_back(string(result));
 	}
 	return;
