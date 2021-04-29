@@ -8,25 +8,33 @@ SO="./logger.so"
 pflag=
 oflag=
 
+if [ $# -eq 0 ]
+then
+	echo 'no command given' 
+	exit -1
+fi 
 
 
 while getopts p:o: opt
 do
 	case $opt in
 		o)
-			# specify the output file of the logger
+			# assign the output file of the logger
 			# use environment variable to pass the file name
-
 			oflag=1
 			export OUT=$OPTARG
 			;;
 		p)
+			# select the injected library
 			pflag=1
 			SO=$OPTARG
 			;;
-		?)
-			echo "unknown parameter"
-			return -1
+		*)
+			echo 'usage: ./logger [-o file] [-p sopath] [--] cmd [cmd args ...]'
+			echo '	-p: set the path to logger.so, default = ./logger.so'
+			echo '	-o: print output to file, print to "stderr" if no file specified'
+			echo '	--: separate the arguments for logger and for the command'
+			exit -1
 			;;
 	esac
 done
