@@ -8,7 +8,7 @@ SO="./logger.so"
 pflag=
 oflag=
 
-if [ $# -eq 0 ]
+if (( $# == 0))
 then
 	echo 'no command given' 
 	exit -1
