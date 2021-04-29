@@ -1,0 +1,51 @@
+#/bin/bash
+
+OUT=
+SO="./logger.so"
+
+
+
+pflag=
+oflag=
+
+
+
+while getopts p:o: opt
+do
+	case $opt in
+		o)
+			# specify the output file of the logger
+			# use environment variable to pass the file name
+
+			oflag=1
+			export OUT=$OPTARG
+			;;
+		p)
+			pflag=1
+			SO=$OPTARG
+			;;
+		?)
+			echo "unknown parameter"
+			return -1
+			;;
+	esac
+done
+
+shift $(($OPTIND - 1))
+export LD_PRELOAD=$SO
+
+if [ -n "$OUT" ] && [ -e $OUT ] 
+then
+	rm $OUT
+fi
+
+$*
+
+
+
+
+
+
+
+
+
