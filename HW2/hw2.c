@@ -59,8 +59,6 @@ void fd2name(int fd, char *name){
 	sprintf(closed_fd,"/proc/%d/fd/%d",pid,fd);
 	
 	int s = readlink(closed_fd,name,1024);
-	
-
 
 	if(s == -1){
 		fprintf(stderr, "fail to readlink %s\nerrno:%d\n", closed_fd,errno);
