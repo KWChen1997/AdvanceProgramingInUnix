@@ -40,14 +40,13 @@ do
 done
 
 shift $(($OPTIND - 1))
-export LD_PRELOAD=$SO
 
 if [ -n "$OUT" ] && [ -e $OUT ] 
 then
 	rm $OUT
 fi
 
-$*
+LD_PRELOAD=$SO $*
 
 
 
