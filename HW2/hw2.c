@@ -24,8 +24,10 @@ static int (*_chmod)(const char*, mode_t) = NULL;
 static int (*_chown)(const char*, uid_t, gid_t) = NULL;
 static int (*_close)(int) = NULL;
 static int (*_creat)(const char*, int) = NULL;
+static int (*_creat64)(const char*, int) = NULL;
 static int (*_fclose)(FILE*) = NULL;
 static FILE* (*_fopen)(const char*, const char*) = NULL;
+static FILE* (*_fopen64)(const char*, const char*) = NULL;
 static size_t (*_fread)(void*, size_t, size_t, FILE*) = NULL;
 static size_t (*_fwrite)(const void*, size_t, size_t, FILE*) = NULL;
 static int (*_open)(const char*, int, ...) = NULL;
@@ -34,6 +36,7 @@ static ssize_t (*_read)(int, void*, size_t) = NULL;
 static int (*_remove)(const char*) = NULL;
 static int (*_rename)(const char*, const char*) = NULL;
 static FILE* (*_tmpfile)(void) = NULL;
+static FILE* (*_tmpfile64)(void) = NULL;
 static ssize_t (*_write)(int, const void*, size_t) = NULL;
 
 void init(){
@@ -43,8 +46,10 @@ void init(){
 	link(_chown,"chown")
 	link(_close,"close")
 	link(_creat,"creat")
+	link(_creat64,"creat64")
 	link(_fclose,"fclose")
 	link(_fopen,"fopen")
+	link(_fopen64,"fopen64")
 	link(_fread,"fread")
 	link(_open,"open")
 	link(_open64,"open64")
@@ -52,6 +57,7 @@ void init(){
 	link(_remove,"remove")
 	link(_rename,"rename")
 	link(_tmpfile,"tmpfile")
+	link(_tmpfile64,"tmpfile64")
 }
 
 void fd2name(int fd, char *name){
@@ -63,7 +69,7 @@ void fd2name(int fd, char *name){
 	int s = readlink(closed_fd,name,1024);
 
 	if(s == -1){
-		fprintf(stderr, "fail to readlink %s\nerrno:%d\n", closed_fd,errno);
+		//fprintf(stderr, "fail to readlink %s\nerrno:%d\n", closed_fd,errno);
 		strcpy(name,"");
 	}
 	return;
@@ -84,9 +90,9 @@ int get_out_fd(){
 	if(outputfile == NULL)
 		fd_out = fileno(stderr);
 	else
-		fd_out = _open(outputfile,O_CREAT|O_WRONLY|O_APPEND, 0600);
+		fd_out = 3;
 
-	return 3;
+	return fd_out;
 }
 
 int open(const char *pathname, int oflags, ...){
@@ -138,7 +144,7 @@ int open64(const char *pathname, int oflags, ...){
 
 	va_end(arg);
 
-	dprintf(fd_out,"[logger] open(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
+	dprintf(fd_out,"[logger] open64(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
 
 	return fd;
 }
@@ -172,9 +178,8 @@ ssize_t read(int fd, void *buf, size_t count){
 	strncpy(outbuf, (char*)buf,32);
 	outbuf[32] = '\0';
 	int i = 0;
-	for(i = 0; i < 33 && outbuf[i] != '\0'; i++){
-		if(!isprint(outbuf[i]))
-			outbuf[i] = '.';
+	for(i = 0; i < strlen(outbuf); i++){
+		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
 	dprintf(fd_out,"[logger] read(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
@@ -193,9 +198,8 @@ ssize_t write(int fd,const void *buf, size_t count){
 	strncpy(outbuf,(char*)buf,32);
 	outbuf[32] = '\0';
 	int i = 0;
-	for( i = 0; i < 33 && outbuf[i] != '\0'; i++){
-		if(!isprint(outbuf[i]))
-			outbuf[i] = '.';
+	for( i = 0; i < strlen(outbuf); i++){
+		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
 	ssize_t ret = _write(fd,buf,count);
@@ -244,6 +248,20 @@ int creat(const char *pathname, mode_t mode){
 	return ret;
 }
 
+int creat64(const char *pathname, mode_t mode){
+	int fd_out = get_out_fd();
+	init();
+
+	int ret = _creat64(pathname, mode);
+
+	char *resolved_path = NULL;
+	resolved_path = realpath(pathname,NULL);
+
+	dprintf(fd_out,"[logger] creat64(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	
+	return ret;
+}
+
 int fclose(FILE *stream){
 	
 	int fd_out = get_out_fd();
@@ -251,10 +269,6 @@ int fclose(FILE *stream){
 
 	char filename[1024] = "";
 	FILE2name(stream,filename);
-
-	int fd = fileno(stream);
-
-	//fprintf(stderr,"%s(%d)\n", __FUNCTION__, fd);
 
 	int ret = _fclose(stream);
 
@@ -277,6 +291,20 @@ FILE *fopen(const char *pathname, const char *mode){
 	return ret;
 }
 
+FILE *fopen64(const char *pathname, const char *mode){
+	int fd_out = get_out_fd();
+	init();
+
+	FILE *ret = _fopen64(pathname, mode);
+
+	char *resolved_path = NULL;
+	resolved_path = realpath(pathname,NULL);
+
+	dprintf(fd_out, "[logger] fopen64(\"%s\", \"%s\") = %p\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	
+	return ret;
+}
+
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	int fd_out = get_out_fd();
 	init();
@@ -286,7 +314,16 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 
 	size_t ret = _fread(ptr,size,nmemb,stream);
 
-	dprintf(fd_out, "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", (char*)ptr, size, nmemb, filename, ret);
+	char outbuf[33] = "";
+
+	int i = 0;
+	strncpy(outbuf, (char*)ptr, 32);
+	outbuf[32] = '\0';
+	for(i = 0; i < strlen(outbuf); i++){
+		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
+	}
+
+	dprintf(fd_out, "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
 	
 	return ret;
 }
@@ -300,7 +337,16 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream){
 
 	size_t ret = _fwrite(ptr,size,nmemb,stream);
 
-	dprintf(fd_out, "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", (char*)ptr, size, nmemb, filename, ret);
+	char outbuf[33] = "";
+
+	int i = 0;
+	strncpy(outbuf, (char*)ptr, 32);
+	outbuf[32] = '\0';
+	for(i = 0; i < strlen(outbuf); i++){
+		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
+	}
+
+	dprintf(fd_out, "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
 	
 	return ret;
 }
@@ -343,6 +389,18 @@ FILE *tmpfile(void){
 	FILE *ret = _tmpfile();
 	
 	dprintf(fd_out, "[logger] tmpfile() = %p\n", ret);
+
+	
+	return ret;
+}
+
+FILE *tmpfile64(void){
+	int fd_out = get_out_fd();
+	init();
+
+	FILE *ret = _tmpfile64();
+	
+	dprintf(fd_out, "[logger] tmpfile64() = %p\n", ret);
 
 	
 	return ret;
