@@ -22,7 +22,7 @@ do
 			# assign the output file of the logger
 			# use environment variable to pass the file name
 			oflag=1
-			export OUT=$OPTARG
+			OUT=$OPTARG
 			;;
 		p)
 			# select the injected library
@@ -41,18 +41,13 @@ done
 
 shift $(($OPTIND - 1))
 
-if [ -n "$OUT" ] && [ -e $OUT ] 
+if [ -n "$OUT" ]  
 then
-	rm $OUT
+	exec 3>$OUT
+else
+	exec 3>&2
 fi
 
 LD_PRELOAD=$SO $*
 
-
-
-
-
-
-
-
-
+exec 3>&-
