@@ -44,8 +44,6 @@ shift $(($OPTIND - 1))
 if [ -n "$OUT" ]  
 then
 	exec 3>$OUT
-else
-	exec 3>&2
 fi
 
 LD_PRELOAD=$SO $*
