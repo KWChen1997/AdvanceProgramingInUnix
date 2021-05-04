@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -12,11 +13,7 @@
 
 #define link(_x,x) \
 if(_x == NULL){\
-	void *handle = dlopen("libc.so.6", RTLD_LAZY);\
-	if(handle != NULL){\
-		_x = dlsym(handle, x);\
-		dlclose(handle);\
-	}\
+	_x = dlsym(RTLD_NEXT, x);\
 }
 
 #define LOGGER_FD 3
