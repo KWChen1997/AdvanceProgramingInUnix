@@ -264,7 +264,6 @@ int creat64(const char *pathname, mode_t mode){
 }
 
 int fclose(FILE *stream){
-	
 	//int fd_out = get_out_fd();
 	init();
 
