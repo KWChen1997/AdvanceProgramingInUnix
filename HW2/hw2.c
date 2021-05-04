@@ -19,6 +19,7 @@ if(_x == NULL){\
 	}\
 }
 
+#define LOGGER_FD 3
 
 static int (*_chmod)(const char*, mode_t) = NULL;
 static int (*_chown)(const char*, uid_t, gid_t) = NULL;
@@ -80,7 +81,7 @@ void FILE2name(FILE *f, char *name){
 	fd2name(fd,name);
 	return;
 }
-
+/*
 int get_out_fd(){
 	init();
 	char *outputfile = NULL;
@@ -94,9 +95,9 @@ int get_out_fd(){
 
 	return fd_out;
 }
-
+*/
 int open(const char *pathname, int oflags, ...){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char *resolved_path = NULL;
@@ -117,13 +118,13 @@ int open(const char *pathname, int oflags, ...){
 
 	va_end(arg);
 
-	dprintf(fd_out,"[logger] open(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
+	dprintf(LOGGER_FD,"[logger] open(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
 
 	return fd;
 }
 
 int open64(const char *pathname, int oflags, ...){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char *resolved_path = NULL;
@@ -144,13 +145,13 @@ int open64(const char *pathname, int oflags, ...){
 
 	va_end(arg);
 
-	dprintf(fd_out,"[logger] open64(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
+	dprintf(LOGGER_FD,"[logger] open64(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
 
 	return fd;
 }
 
 int close(int fd){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char filename[1024] = "";
@@ -158,14 +159,14 @@ int close(int fd){
 	fd2name(fd,filename);
 
 	int ret = _close(fd);
-	dprintf(fd_out, "[logger] close(\"%s\") = %d\n", filename, ret);
+	dprintf(LOGGER_FD, "[logger] close(\"%s\") = %d\n", filename, ret);
 	
 
 	return ret;
 }
 
 ssize_t read(int fd, void *buf, size_t count){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char filename[1024] = "";
@@ -182,14 +183,14 @@ ssize_t read(int fd, void *buf, size_t count){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
-	dprintf(fd_out,"[logger] read(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
+	dprintf(LOGGER_FD,"[logger] read(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
 
 	
 	return ret;
 }
 
 ssize_t write(int fd,const void *buf, size_t count){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 	char filename[1024] = "";
 	char outbuf[33] = "";
@@ -204,12 +205,12 @@ ssize_t write(int fd,const void *buf, size_t count){
 
 	ssize_t ret = _write(fd,buf,count);
 
-	dprintf(fd_out,"[logger] write(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
+	dprintf(LOGGER_FD,"[logger] write(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
 	return ret;
 }
 
 int chmod(const char *pathname, mode_t mode){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char *resolved_path = NULL;
@@ -217,25 +218,25 @@ int chmod(const char *pathname, mode_t mode){
 
 	int ret = _chmod(pathname,mode);
 	
-	dprintf(fd_out,"[logger] chmod(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	dprintf(LOGGER_FD,"[logger] chmod(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
 	return ret;
 }
 
 int chown(const char *pathname, uid_t owner, gid_t group){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 	char *resolved_path = NULL;
 	resolved_path = realpath(pathname,NULL);
 
 	int ret = _chown(pathname,owner,group);
 	
-	dprintf(fd_out,"[logger] chown(\"%s\", %d, %d) = %d\n", (resolved_path)?resolved_path:pathname, owner, group, ret);
+	dprintf(LOGGER_FD,"[logger] chown(\"%s\", %d, %d) = %d\n", (resolved_path)?resolved_path:pathname, owner, group, ret);
 	
 	return ret;
 }
 
 int creat(const char *pathname, mode_t mode){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	int ret = _creat(pathname, mode);
@@ -243,13 +244,13 @@ int creat(const char *pathname, mode_t mode){
 	char *resolved_path = NULL;
 	resolved_path = realpath(pathname,NULL);
 
-	dprintf(fd_out,"[logger] creat(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	dprintf(LOGGER_FD,"[logger] creat(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
 	
 	return ret;
 }
 
 int creat64(const char *pathname, mode_t mode){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	int ret = _creat64(pathname, mode);
@@ -257,14 +258,14 @@ int creat64(const char *pathname, mode_t mode){
 	char *resolved_path = NULL;
 	resolved_path = realpath(pathname,NULL);
 
-	dprintf(fd_out,"[logger] creat64(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	dprintf(LOGGER_FD,"[logger] creat64(\"%s\", %o) = %d\n", (resolved_path)?resolved_path:pathname, mode, ret);
 	
 	return ret;
 }
 
 int fclose(FILE *stream){
 	
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char filename[1024] = "";
@@ -272,13 +273,13 @@ int fclose(FILE *stream){
 
 	int ret = _fclose(stream);
 
-	dprintf(fd_out, "[logger] fclose(\"%s\") = %d\n", filename, ret);
+	dprintf(LOGGER_FD, "[logger] fclose(\"%s\") = %d\n", filename, ret);
 	
 	return ret;
 }
 
 FILE *fopen(const char *pathname, const char *mode){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	FILE *ret = _fopen(pathname, mode);
@@ -286,13 +287,13 @@ FILE *fopen(const char *pathname, const char *mode){
 	char *resolved_path = NULL;
 	resolved_path = realpath(pathname,NULL);
 
-	dprintf(fd_out, "[logger] fopen(\"%s\", \"%s\") = %p\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	dprintf(LOGGER_FD, "[logger] fopen(\"%s\", \"%s\") = %p\n", (resolved_path)?resolved_path:pathname, mode, ret);
 	
 	return ret;
 }
 
 FILE *fopen64(const char *pathname, const char *mode){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	FILE *ret = _fopen64(pathname, mode);
@@ -300,13 +301,13 @@ FILE *fopen64(const char *pathname, const char *mode){
 	char *resolved_path = NULL;
 	resolved_path = realpath(pathname,NULL);
 
-	dprintf(fd_out, "[logger] fopen64(\"%s\", \"%s\") = %p\n", (resolved_path)?resolved_path:pathname, mode, ret);
+	dprintf(LOGGER_FD, "[logger] fopen64(\"%s\", \"%s\") = %p\n", (resolved_path)?resolved_path:pathname, mode, ret);
 	
 	return ret;
 }
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char filename[1024] = "";
@@ -323,13 +324,13 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
-	dprintf(fd_out, "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
+	dprintf(LOGGER_FD, "[logger] fread(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
 	
 	return ret;
 }
 
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char filename[1024] = "";
@@ -346,13 +347,13 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
-	dprintf(fd_out, "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
+	dprintf(LOGGER_FD, "[logger] fwrite(\"%s\", %ld, %ld, \"%s\") = %ld\n", outbuf, size, nmemb, filename, ret);
 	
 	return ret;
 }
 
 int remove(const char *pathname){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char *resolved_path = NULL;
@@ -360,13 +361,13 @@ int remove(const char *pathname){
 
 	int ret = _remove(pathname);
 	
-	dprintf(fd_out,"[logger] remove(\"%s\") = %d\n", (resolved_path)?resolved_path:pathname, ret);
+	dprintf(LOGGER_FD,"[logger] remove(\"%s\") = %d\n", (resolved_path)?resolved_path:pathname, ret);
 	
 	return ret;
 }
 
 int rename(const char *oldpath, const char *newpath){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	char *resolved_oldpath = NULL;
@@ -377,30 +378,30 @@ int rename(const char *oldpath, const char *newpath){
 	char *resolved_newpath = NULL;
 	resolved_newpath = realpath(newpath,NULL);
 
-	dprintf(fd_out, "[logger] rename(\"%s\", \"%s\") = %d\n", (resolved_oldpath)?resolved_oldpath:oldpath, (resolved_newpath)?resolved_newpath:newpath, ret);
+	dprintf(LOGGER_FD, "[logger] rename(\"%s\", \"%s\") = %d\n", (resolved_oldpath)?resolved_oldpath:oldpath, (resolved_newpath)?resolved_newpath:newpath, ret);
 
 	return ret;
 }
 
 FILE *tmpfile(void){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	FILE *ret = _tmpfile();
 	
-	dprintf(fd_out, "[logger] tmpfile() = %p\n", ret);
+	dprintf(LOGGER_FD, "[logger] tmpfile() = %p\n", ret);
 
 	
 	return ret;
 }
 
 FILE *tmpfile64(void){
-	int fd_out = get_out_fd();
+	//int fd_out = get_out_fd();
 	init();
 
 	FILE *ret = _tmpfile64();
 	
-	dprintf(fd_out, "[logger] tmpfile64() = %p\n", ret);
+	dprintf(LOGGER_FD, "[logger] tmpfile64() = %p\n", ret);
 
 	
 	return ret;
