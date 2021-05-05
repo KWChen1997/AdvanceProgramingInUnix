@@ -115,7 +115,7 @@ int open(const char *pathname, int oflags, ...){
 
 	va_end(arg);
 
-	dprintf(LOGGER_FD,"[logger] open(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
+	dprintf(LOGGER_FD,"[logger] open(\"%s,\", %o, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
 
 	return fd;
 }
@@ -142,7 +142,7 @@ int open64(const char *pathname, int oflags, ...){
 
 	va_end(arg);
 
-	dprintf(LOGGER_FD,"[logger] open64(\"%s,\", %04d, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
+	dprintf(LOGGER_FD,"[logger] open64(\"%s,\", %o, %o) = %d\n",(resolved_path)?resolved_path:pathname,oflags,mode,fd);
 
 	return fd;
 }

@@ -48,6 +48,8 @@ else
 	exec 3>&2
 fi
 
+echo $SO
+
 LD_PRELOAD=$SO $*
 
 exec 3>&-
