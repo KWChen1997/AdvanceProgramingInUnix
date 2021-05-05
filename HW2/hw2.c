@@ -172,11 +172,12 @@ ssize_t read(int fd, void *buf, size_t count){
 	fd2name(fd,filename);
 
 	ssize_t ret = _read(fd,buf,count);
+	ssize_t end = 32 < ret ? 32 : ret;
 
-	strncpy(outbuf, (char*)buf,32);
-	outbuf[32] = '\0';
+	strncpy(outbuf, (char*)buf,end);
+	outbuf[end] = '\0';
 	int i = 0;
-	for(i = 0; i < strlen(outbuf); i++){
+	for(i = 0; i < end; i++){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
@@ -193,14 +194,15 @@ ssize_t write(int fd,const void *buf, size_t count){
 	char outbuf[33] = "";
 
 	fd2name(fd,filename);
-	strncpy(outbuf,(char*)buf,32);
-	outbuf[32] = '\0';
+	ssize_t ret = _write(fd,buf,count);
+	ssize_t end = 32 < ret ? 32 : ret;
+	strncpy(outbuf,(char*)buf,end);
+	outbuf[end] = '\0';
 	int i = 0;
-	for( i = 0; i < strlen(outbuf); i++){
+	for( i = 0; i < end; i++){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
-	ssize_t ret = _write(fd,buf,count);
 
 	dprintf(LOGGER_FD,"[logger] write(\"%s\",\"%s\",%ld) = %ld\n", filename, outbuf, count, ret);
 	return ret;
@@ -314,9 +316,10 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	char outbuf[33] = "";
 
 	int i = 0;
-	strncpy(outbuf, (char*)ptr, 32);
-	outbuf[32] = '\0';
-	for(i = 0; i < strlen(outbuf); i++){
+	size_t end = 32 < ret*size ? 32 : ret*size;
+	strncpy(outbuf, (char*)ptr, end);
+	outbuf[end] = '\0';
+	for(i = 0; i < end; i++){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
@@ -337,9 +340,10 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream){
 	char outbuf[33] = "";
 
 	int i = 0;
-	strncpy(outbuf, (char*)ptr, 32);
-	outbuf[32] = '\0';
-	for(i = 0; i < strlen(outbuf); i++){
+	size_t end = 32 < size*ret ? 32 : size*ret;
+	strncpy(outbuf, (char*)ptr, end);
+	outbuf[end] = '\0';
+	for(i = 0; i < end; i++){
 		outbuf[i] = (isprint(outbuf[i]))? outbuf[i]:'.';
 	}
 
