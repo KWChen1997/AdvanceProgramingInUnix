@@ -5,3 +5,4 @@ HW1/_hw1
 *.swp
 HW2/*.so
 HW2/*.html*
+*.o
