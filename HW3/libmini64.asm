@@ -129,30 +129,3 @@ label1:
 	or     rax,0xffffffff
 	ret
 
-
-	global sigaction:function
-
-%define SA_RESTORER 0x04000000
-
-struc sigaction_t
-	.sa_handler	resq 1
-	.sa_flags	resq 1
-	.sa_restorer	resq 1
-	.sa_mask	resq 1
-endstruc
-
-sigaction:
-	nop
-	nop
-	ret
-
-handler:
-	ret
-
-restorer:
-	mov rax, 0x0f
-	syscall
-	ret
-
-
-
