@@ -3,6 +3,8 @@ HW1/hw1
 HW1/_hw1
 *.txt
 *.swp
-HW2/*.so
+*.so
 HW2/*.html*
 *.o
+*.out
+HW3/sample/*
