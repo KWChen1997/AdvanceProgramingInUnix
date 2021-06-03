@@ -122,12 +122,9 @@ alarm:
 	mov    eax,0x25
 	syscall
 	cmp    rax,0xfffff001
-	jae    label1
+	jae    alarm_error
 	ret
-label1:
-	mov    rcx,[rip+0x104f45]
-	neg    eax
-	mov    [rcx],eax
+alarm_error:
 	or     rax,0xffffffff
 	ret
 
