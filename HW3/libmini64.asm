@@ -54,7 +54,9 @@ extern	errno
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;          my code          ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	gensys 37, alarm	; sys_alarm
+	gensys  37, alarm	; sys_alarm
+	gensys  14, sigprocmask
+	gensys 127, sigpending
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -127,5 +129,44 @@ label1:
 	neg    eax
 	mov    [rcx],eax
 	or     rax,0xffffffff
+	ret
+
+	global sigprocmask:function
+
+sigprocmask:
+	sub    rsp,0x98
+	xor    r8d,r8d
+	; mov    rax,QWORD PTR fs:0x28
+	; mov    QWORD PTR [rsp+0x88],rax
+	xor    eax,eax
+	test   rsi,rsi
+	je     sigprocmask_call
+	mov    r8,rsi
+sigprocmask_call:
+	mov    r10d,0x8
+	mov    rsi,r8
+	mov    eax,0xe
+	syscall
+	cmp    rax,0xfffff000
+	ja     sigprocmask_error
+sigprocmask_exit:
+	add    rsp,0x98
+	ret
+sigprocmask_error:
+	mov eax, 0xffffffff
+	jmp sigprocmask_exit
+
+	global sigpending:function
+
+sigpending:
+	mov    esi,0x8
+	mov    eax,0x7f
+	syscall
+	cmp    rax,0xfffff000
+	ja     sigpending_error
+	ret
+	nop
+sigpending_error:
+	mov    eax,0xffffffff
 	ret
 

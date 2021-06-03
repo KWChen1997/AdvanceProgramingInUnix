@@ -8,3 +8,6 @@ HW2/*.html*
 *.o
 *.out
 HW3/sample/*
+HW3/alarm1
+HW3/alarm2
+HW3/alarm3

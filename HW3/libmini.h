@@ -165,29 +165,19 @@ struct timezone {
  * my code
  * */
 
-/* from /usr/include/asm/signal.h */
-
-#define _NSIG 64
-#define _NSIG_BPW 64
-#define _NSIG_WORDS (_NSIG / _NSIG_BPW)
-
-/* from tools/include/linux/compiler.h */
-
-#define __user
-
 /* from include/uapi/asm-generic/signal-defs.h */
 
 typedef void __signalfn_t(int);
-typedef __signalfn_t __user *__sighandler_t;
+typedef __signalfn_t *__sighandler_t;
 
 typedef void __restorefn_t(void);
-typedef __restorefn_t __user *__sigrestore_t;
+typedef __restorefn_t *__sigrestore_t;
 
 /* from arch//x86/include/asm/signal.h */
 
 typedef struct {
 	/* next_signal() assumes this is a long - no choice */
-	unsigned long sig[_NSIG_WORDS];
+	unsigned long sig;
 } sigset_t;
 
 /* from include/linux/signal_types.h */
@@ -198,99 +188,41 @@ struct sigaction {
 	sigset_t sa_mask;
 };
 
-/* from iclude/linux/compiler_attributes.h */
-
-#ifndef __has_attribute
-# define __has_attribute(x) __GCC4_has_attribute_##x
-# define __GCC4_has_attribute___assume_aligned__      (__GNUC_MINOR__ >= 9)
-# define __GCC4_has_attribute___copy__                0
-# define __GCC4_has_attribute___designated_init__     0
-# define __GCC4_has_attribute___externally_visible__  1
-# define __GCC4_has_attribute___no_caller_saved_registers__ 0
-# define __GCC4_has_attribute___noclone__             1
-# define __GCC4_has_attribute___nonstring__           0
-# define __GCC4_has_attribute___no_sanitize_address__ (__GNUC_MINOR__ >= 8)
-# define __GCC4_has_attribute___no_sanitize_undefined__ (__GNUC_MINOR__ >= 9)
-# define __GCC4_has_attribute___fallthrough__         0
-#endif
-
-#if __has_attribute(__fallthrough__)
-# define fallthrough                    __attribute__((__fallthrough__))
-#else
-# define fallthrough                    do {} while (0)  /* fallthrough */
-#endif
-
 /* from include/linux/signal.h */
 
 static inline void sigemptyset(sigset_t *set)
 {
-	int i;
-	switch (_NSIG_WORDS) {
-	default:
-		//memset(set, 0, sizeof(sigset_t));
-		for(i = 0; i <_NSIG_WORDS; i++){
-			set->sig[i] = 0;
-		}
-		break;
-	case 2: set->sig[1] = 0;
-		fallthrough;
-	case 1:	set->sig[0] = 0;
-		break;
-	}
+	set->sig = 0;
 }
 
 static inline void sigfillset(sigset_t *set)
 {
-	int i;
-	switch (_NSIG_WORDS) {
-	default:
-		//memset(set, -1, sizeof(sigset_t));
-		for(i = 0; i <_NSIG_WORDS; i++){
-			set->sig[i] = 0;
-		}
-		break;
-	case 2: set->sig[1] = -1;
-		fallthrough;
-	case 1:	set->sig[0] = -1;
-		break;
-	}
+	set->sig = -1;
 }
 
 static inline void sigaddset(sigset_t *set, int _sig)
 {
 	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		set->sig[0] |= 1UL << sig;
-	else
-		set->sig[sig / _NSIG_BPW] |= 1UL << (sig % _NSIG_BPW);
+	set->sig |= 1UL << sig;
 }
 
 
 static inline void sigdelset(sigset_t *set, int _sig)
 {
 	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		set->sig[0] &= ~(1UL << sig);
-	else
-		set->sig[sig / _NSIG_BPW] &= ~(1UL << (sig % _NSIG_BPW));
+	set->sig &= ~(1UL << sig);
 }
 
 static inline int sigismember(sigset_t *set, int _sig)
 {
 	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		return 1 & (set->sig[0] >> sig);
-	else
-		return 1 & (set->sig[sig / _NSIG_BPW] >> (sig % _NSIG_BPW));
+	return 1 & (set->sig >> sig);
 
 }
 
 /* from my brain */
 static inline void sigorset(sigset_t *dest, sigset_t *left, sigset_t *right){
-	int i;
-	for(i = 0; i < _NSIG_WORDS; i++){
-		dest->sig[i] = left->sig[i] | right->sig[i];
-	}
+	dest->sig = left->sig | right->sig;
 }
 
 /*
@@ -331,6 +263,16 @@ long sys_setuid(uid_t uid);
 long sys_setgid(gid_t gid);
 long sys_geteuid();
 long sys_getegid();
+
+/*
+ * my code
+ * */
+
+long sys_sigprocmask(int how, sigset_t *set, sigset_t *oset);
+
+/*
+ * end of my code
+ * */
 
 /* wrappers */
 ssize_t	read(int fd, char *buf, size_t count);
@@ -377,6 +319,8 @@ unsigned int sleep(unsigned int s);
  * */
 
 unsigned int alarm(unsigned int seconds);
+int sigprocmask(int how, const sigset_t *restrict set, sigset_t *restrict oldset);
+int sigpending(sigset_t *set);
 
 /*
  * end of my code
