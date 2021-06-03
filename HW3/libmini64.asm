@@ -57,6 +57,7 @@ extern	errno
 	gensys  37, alarm	; sys_alarm
 	gensys  14, sigprocmask
 	gensys 127, sigpending
+	gensys  13, sigaction
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

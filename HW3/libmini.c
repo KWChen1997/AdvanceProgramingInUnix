@@ -251,3 +251,27 @@ unsigned int sleep(unsigned int seconds) {
  * my code
  * */
 
+sighandler_t signal(int signo, sighandler_t handler){
+	struct sigaction act, oact;
+	act.sa_handler = handler;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags - 0;
+	if(signo == SIGALRM){
+#ifdef SA_INTERRUPT
+		act.sa_flags |= SA_INTERRUPT;
+#endif
+	}
+	else{
+#ifdef SA_RESTART
+		act.sa_flags |= SA_RESTART;
+#endif
+	}
+
+	if(sigaction(signo, &act, &oact) < 0)
+		return(SIG_ERR);
+	return(oact.sa_handler);
+}
+
+int sigaction(int signum, const struct sigaction *act, struct sigaction *oact){
+	return sys_sigaction(signum,act,oact,sizeof(sigset_t));
+}

@@ -165,13 +165,11 @@ struct timezone {
  * my code
  * */
 
-/* from include/uapi/asm-generic/signal-defs.h */
+#define SIG_DFL	((sighandler_t)0)	/* default signal handling */
+#define SIG_IGN	((sighandler_t)1)	/* ignore signal */
+#define SIG_ERR	((sighandler_t)-1)	/* error return from signal */
 
-typedef void __signalfn_t(int);
-typedef __signalfn_t *__sighandler_t;
-
-typedef void __restorefn_t(void);
-typedef __restorefn_t *__sigrestore_t;
+typedef void (*sighandler_t)(int);
 
 /* from arch//x86/include/asm/signal.h */
 
@@ -183,9 +181,10 @@ typedef struct {
 /* from include/linux/signal_types.h */
 
 struct sigaction {
-	__sighandler_t sa_handler;
+	sighandler_t sa_handler;
 	unsigned long sa_flags;
 	sigset_t sa_mask;
+	void (*sa_restorer)(void);
 };
 
 /* from include/linux/signal.h */
@@ -269,6 +268,7 @@ long sys_getegid();
  * */
 
 long sys_sigprocmask(int how, sigset_t *set, sigset_t *oset);
+long sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oact, size_t sigsetsize);
 
 /*
  * end of my code
@@ -321,6 +321,8 @@ unsigned int sleep(unsigned int s);
 unsigned int alarm(unsigned int seconds);
 int sigprocmask(int how, const sigset_t *restrict set, sigset_t *restrict oldset);
 int sigpending(sigset_t *set);
+sighandler_t signal(int signum, sighandler_t handler);
+int sigaction(int signum, const struct sigaction * act, struct sigaction * oldact);
 
 /*
  * end of my code
