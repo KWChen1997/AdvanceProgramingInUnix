@@ -59,7 +59,7 @@ void help(){
 int load_prog(const char *filepath){
 	// check file exist
 	if(access(filepath, F_OK) != 0){
-		fprintf(stderr,"** %s",strerror(errno));
+		fprintf(stderr,"** %s\n",strerror(errno));
 		return 0;
 	}
 	// load elf
