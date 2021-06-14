@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -g
-OBJS = hw4.o load.o
+OBJS = hw4.o
 TARGET = hw4
 
 all:$(TARGET)
@@ -11,5 +11,5 @@ $(TARGET):$(OBJS)
 clean:
 	rm $(TARGET) *.o
 
-load.o: load.c load.h elftool.h
-	$(CC) $(CFLAGS) -o $@ -c $<
+# load.o: load.c load.h elftool.h
+#	$(CC) $(CFLAGS) -o $@ -c $<
