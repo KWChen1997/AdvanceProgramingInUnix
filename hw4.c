@@ -10,21 +10,33 @@
 #include <sys/ptrace.h>
 #include <sys/user.h>
 #include "elftool.h"
+#include "func.h"
 
-#define CHILD_NONE	0x0
-#define CHILD_LOADED	0x1
-#define CHILD_RUNNING	0x2
-#define CHILD_ANY	CHILD_LOADED | CHILD_RUNNING
+#define CHILD_NONE	0x1
+#define CHILD_LOADED	0x2
+#define CHILD_RUNNING	0x4
+#define CHILD_ANY	(CHILD_LOADED | CHILD_RUNNING)
 
 #define DELIMITER "\t\n "
 
+#define REGS_FORMAT \
+"RAX %llx\t\t\tRBX %llx\t\t\tRCX %llx\t\t\tRDX %llx\n\
+R8  %llx\t\t\tR9  %llx\t\t\tR10 %llx\t\t\tR11 %llx\n\
+R12 %llx\t\t\tR13 %llx\t\t\tR14 %llx\t\t\tR15 %llx\n\
+RDI %llx\t\t\tRSI %llx\t\t\tRBP %llx\t\t\tRSP %llx\n\
+RIP %llx\t\tFLAGS %016llx\n"
+
 #define update_st(nst)\
 	child_state = nst;
+#define is_state(st)\
+	(child_state & st)
 
 static char child_state;
+static int child_status;
 static char filename[1024];
 static char scriptname[1024];
 static pid_t child;
+static Elf64_Ehdr *elf_hdr;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -57,64 +69,88 @@ void help(){
 }
 
 int load_prog(const char *filepath){
+	if(!is_state(CHILD_NONE)){
+		fprintf(stderr,"** program \'%s\' is already loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
+		return -1;
+	}
 	// check file exist
-	if(access(filepath, F_OK) != 0){
+	if(access(filename, F_OK) != 0){
 		fprintf(stderr,"** %s\n",strerror(errno));
 		return 0;
 	}
+
+	// save the name of the loaded program
+	strcpy(filename,filepath);
+
 	// load elf
-	Elf64_Ehdr *elf_hdr;
 	elf_hdr = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
-	int fd = open(filepath, O_RDONLY);
+	int fd = open(filename, O_RDONLY);
 	ssize_t count = read(fd,elf_hdr,sizeof(Elf64_Ehdr));
-	fprintf(stderr,"** program \'%s\' loaded. entry point 0x%lx\n", filepath, elf_hdr->e_entry);
-	free(elf_hdr);
+	fprintf(stderr,"** program \'%s\' loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
 	update_st(CHILD_LOADED);
 	return 0;
 }
 
-void start(const char* filepath){
-	if(child_state < CHILD_LOADED){
+void start(){
+	if(!is_state(CHILD_LOADED)){
 		fprintf(stderr,"** no program is loaded\n");
 		return;
 	}
-	if(strlen(filepath) == 0){
-		fprintf(stderr,"** filepath is empty\n");
-		return;
-	}
+
 	if((child = fork()) < 0){
 		errquit("start\n");
 	}
 
 	if(child == 0){
 		ptrace(PTRACE_TRACEME,0,0,0);
-		execvp(filepath,NULL);
+		execvp(filename,NULL);
 		errquit("failed to execute\n");
 	}
 	else{
-		int status;
-		if(waitpid(child, &status, 0) < 0)	errquit("start: waitpid\n");
+		if(waitpid(child, &child_status, 0) < 0)	errquit("start: waitpid\n");
 		fprintf(stderr,"** pid %d\n",child); 
 		update_st(CHILD_RUNNING);
-		assert(WIFSTOPPED(status));
+		assert(WIFSTOPPED(child_status));
 		ptrace(PTRACE_SETOPTIONS,child,0,PTRACE_O_EXITKILL);
 	}
+	return;
+}
+
+void run(){
+	if(!is_state(CHILD_ANY)){
+		fprintf(stderr,"** No program is loaded or running\n");
+		return;
+	}
+
+	if(is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** program %s is already running\n", filename);
+	}
+	if(is_state(CHILD_LOADED)){
+		start();
+	}
+	
+	cont();
+
+	return;
 }
 
 void cont(){
-	if(child_state < CHILD_RUNNING){
+	if(!is_state(CHILD_RUNNING)){
 		fprintf(stderr,"** process is not running\n");
 		return;
 	}
 
-	int status;
 	ptrace(PTRACE_CONT,child,0,0);
-	waitpid(child,&status,0);
+	waitpid(child,&child_status,0);
+	if(WIFEXITED(child_status)){
+		fprintf(stderr,"** child process %d terminated normally (code %d)\n", child, WEXITSTATUS(child_status));
+		update_st(CHILD_LOADED);
+	}
 	return;
 }
 
 void vmmap(){
-	if(child_state < CHILD_RUNNING){
+	if(!is_state(CHILD_RUNNING)){
 		fprintf(stderr,"** process is not running\n");
 		return;
 	}
@@ -132,6 +168,28 @@ void vmmap(){
 		fprintf(stderr,"%s",buf);
 	}
 	free(buf);
+}
+
+void printRegs(struct user_regs_struct regs){
+	fprintf(stdout,REGS_FORMAT,	regs.rax, regs.rbx, regs.rcx, regs.rdx,
+		       			regs.r8,  regs.r9,  regs.r10, regs.r11,
+					regs.r12, regs.r13, regs.r14, regs.r15,
+					regs.rdi, regs.rsi, regs.rbp, regs.rsp,
+					regs.rip, regs.eflags);
+	return;
+}
+
+void getregs(){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No running process\n");
+		return;
+	}
+
+	if(WIFSTOPPED(child_status)){
+		struct user_regs_struct regs;
+		ptrace(PTRACE_GETREGS,child,0,&regs);
+		printRegs(regs);
+	}
 }
 
 unsigned char handle_cmd(char *cmdbuf){
@@ -153,11 +211,13 @@ unsigned char handle_cmd(char *cmdbuf){
 			fprintf(stderr,"- load {path/to/a/program}: load a program\n");
 			return 0;
 		}
-		strcpy(filename,argv[1]);
 		load_prog(argv[1]);
 	}
 	else if(strcmp(argv[0],"start") == 0){
-		start(filename);
+		start();
+	}
+	else if(strcmp(argv[0],"run") == 0){
+		run();
 	}
 	else if(strcmp(argv[0],"cont") == 0){
 		cont();
@@ -165,8 +225,11 @@ unsigned char handle_cmd(char *cmdbuf){
 	else if(strcmp(argv[0],"vmmap") == 0){
 		vmmap();
 	}
+	else if(strcmp(argv[0],"getregs") == 0){
+		getregs();
+	}
 
-	return argv[0] != NULL && (strcmp(argv[0],"quit") == 0 || strcmp(argv[0],"q") == 0);
+	return argv[0] != NULL && (strcmp(argv[0],"exit") == 0 || strcmp(argv[0],"q") == 0);
 }
 
 int main(int argc, char *argv[]) {
