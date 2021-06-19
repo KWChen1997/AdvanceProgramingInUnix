@@ -1,13 +1,13 @@
 # HW4 Simple Debugger
 - functions:
-	- [x] break
+	- [ ] break
 	- [x] cont
 	- [ ] delete
 	- [ ] disassmeble
 	- [ ] dump
 	- [x] exit
 	- [ ] get reg
-	- [ ] getregs
+	- [x] getregs
 	- [x] help
 	- [ ] list
 	- [x] load
