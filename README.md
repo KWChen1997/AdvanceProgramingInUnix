@@ -1,0 +1,18 @@
+# HW4 Simple Debugger
+- functions:
+	- [ ] break
+	- [x] cont
+	- [ ] delete
+	- [ ] disassmeble
+	- [ ] dump
+	- [x] exit
+	- [ ] get reg
+	- [x] getregs
+	- [x] help
+	- [ ] list
+	- [x] load
+	- [ ] run
+	- [x] vmmap
+	- [ ] set
+	- [ ] si
+	- [x] start
