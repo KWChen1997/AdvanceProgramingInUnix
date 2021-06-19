@@ -1,35 +1,5 @@
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/ptrace.h>
-#include <sys/user.h>
 #include "elftool.h"
-#include "func.h"
-
-#define CHILD_NONE	0x1
-#define CHILD_LOADED	0x2
-#define CHILD_RUNNING	0x4
-#define CHILD_ANY	(CHILD_LOADED | CHILD_RUNNING)
-
-#define DELIMITER "\t\n "
-
-#define REGS_FORMAT \
-"RAX %llx\t\t\tRBX %llx\t\t\tRCX %llx\t\t\tRDX %llx\n\
-R8  %llx\t\t\tR9  %llx\t\t\tR10 %llx\t\t\tR11 %llx\n\
-R12 %llx\t\t\tR13 %llx\t\t\tR14 %llx\t\t\tR15 %llx\n\
-RDI %llx\t\t\tRSI %llx\t\t\tRBP %llx\t\t\tRSP %llx\n\
-RIP %llx\t\tFLAGS %016llx\n"
-
-#define update_st(nst)\
-	child_state = nst;
-#define is_state(st)\
-	(child_state & st)
+#include "hw4.h"
 
 static char child_state;
 static int child_status;
@@ -37,6 +7,9 @@ static char filename[1024];
 static char scriptname[1024];
 static pid_t child;
 static Elf64_Ehdr *elf_hdr;
+static struct bp* bp_list;
+static int bp_cap;
+static int bp_len;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -45,6 +18,24 @@ void errquit(const char *msg) {
 
 void prompt(){
 	fprintf(stderr,"sdb> ");
+}
+
+unsigned char checkTerm(){
+	if(WIFEXITED(child_status)){
+		fprintf(stderr,"** child process %d terminated normally (code %d)\n", child, WEXITSTATUS(child_status));
+		update_st(CHILD_LOADED);
+		return 1;
+	}
+	return 0;
+}
+
+int findbp(unsigned long long addr){
+	int i = 0;
+	for(i = 0; i < bp_len; i++){
+		if(bp_list[i].valid && addr == bp_list[i].addr)
+			return i;
+	}
+	return -1;
 }
 
 void help(){
@@ -74,7 +65,7 @@ int load_prog(const char *filepath){
 		return -1;
 	}
 	// check file exist
-	if(access(filename, F_OK) != 0){
+	if(access(filepath, F_OK) != 0){
 		fprintf(stderr,"** %s\n",strerror(errno));
 		return 0;
 	}
@@ -134,18 +125,51 @@ void run(){
 	return;
 }
 
+void checkbp(){
+	struct user_regs_struct regs;
+	int idx;
+	unsigned long code;
+	ptrace(PTRACE_GETREGS,child,0,&regs);
+	regs.rip--;
+	idx = findbp(regs.rip);
+	if(idx < 0){
+		return;
+	}
+	code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+	code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
+	ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
+	ptrace(PTRACE_SETREGS,child,0,&regs);
+	return;
+}
+
 void cont(){
 	if(!is_state(CHILD_RUNNING)){
 		fprintf(stderr,"** process is not running\n");
 		return;
 	}
 
+	struct user_regs_struct regs;
+	unsigned long code;
+	int idx;
+	ptrace(PTRACE_GETREGS,child,0,&regs);
+	if((idx = findbp(regs.rip)) >= 0){
+		ptrace(PTRACE_SINGLESTEP,child,0,0);
+		waitpid(child,&child_status,0);
+		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+		bp_list[idx].code = code;
+		ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,(code & 0xffffffffffffff00) | 0xcc);
+	}
 	ptrace(PTRACE_CONT,child,0,0);
 	waitpid(child,&child_status,0);
-	if(WIFEXITED(child_status)){
-		fprintf(stderr,"** child process %d terminated normally (code %d)\n", child, WEXITSTATUS(child_status));
-		update_st(CHILD_LOADED);
+	
+
+	if(!checkTerm()){
+		checkbp();
+		ptrace(PTRACE_GETREGS,child,0,&regs);
+		idx = findbp(regs.rip);
+		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
 	}
+
 	return;
 }
 
@@ -192,6 +216,180 @@ void getregs(){
 	}
 }
 
+void getreg(const char* regstr){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No running process\n");
+		return;
+	}
+	struct user_regs_struct regs;
+	unsigned long long reg;
+	ptrace(PTRACE_GETREGS,child,0,&regs);
+	if(strcmp(regstr,"r15") == 0) reg = regs.r15;
+	else if(strcmp(regstr,"r14") == 0) reg = regs.r14;
+	else if(strcmp(regstr,"r13") == 0) reg = regs.r13;
+	else if(strcmp(regstr,"r12") == 0) reg = regs.r12;
+	else if(strcmp(regstr,"rbp") == 0) reg = regs.rbp;
+	else if(strcmp(regstr,"rbx") == 0) reg = regs.rbx;
+	else if(strcmp(regstr,"r11") == 0) reg = regs.r11;
+	else if(strcmp(regstr,"r10") == 0) reg = regs.r10;
+	else if(strcmp(regstr,"r9") == 0) reg = regs.r9;
+	else if(strcmp(regstr,"r8") == 0) reg = regs.r8;
+	else if(strcmp(regstr,"rax") == 0) reg = regs.rax;
+	else if(strcmp(regstr,"rcx") == 0) reg = regs.rbx;
+	else if(strcmp(regstr,"rdx") == 0) reg = regs.rdx;
+	else if(strcmp(regstr,"rsi") == 0) reg = regs.rsi;
+	else if(strcmp(regstr,"rdi") == 0) reg = regs.rdi;
+	else if(strcmp(regstr,"orig_rax") == 0) reg = regs.orig_rax;
+	else if(strcmp(regstr,"rip") == 0) reg = regs.rip;
+	else if(strcmp(regstr,"cs") == 0) reg = regs.cs;
+	else if(strcmp(regstr,"eflags") == 0) reg = regs.eflags;
+	else if(strcmp(regstr,"rsp") == 0) reg = regs.rsp;
+	else if(strcmp(regstr,"ss") == 0) reg = regs.ss;
+	else if(strcmp(regstr,"fs_base") == 0) reg = regs.fs_base;
+	else if(strcmp(regstr,"gs_base") == 0) reg = regs.gs_base;
+	else if(strcmp(regstr,"ds") == 0) reg = regs.ds;
+	else if(strcmp(regstr,"es") == 0) reg = regs.es;
+	else if(strcmp(regstr,"fs") == 0) reg = regs.fs;
+	else if(strcmp(regstr,"gs") == 0) reg = regs.gs;
+	else{
+		fprintf(stderr,"** No register named %s\n", regstr);
+		return;
+	}
+	fprintf(stderr,"%s = %llu (0x%llx)\n", regstr, reg, reg);
+	return;
+}
+
+void si(){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No running process\n");
+		return;
+	}
+	
+	struct user_regs_struct regs;
+	int idx;
+	unsigned long code;
+	ptrace(PTRACE_GETREGS,child,0,&regs);
+	idx = findbp(regs.rip);
+	if(idx >= 0){
+		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+		code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
+		ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
+	}
+
+	ptrace(PTRACE_SINGLESTEP,child,0,0);
+	waitpid(child,&child_status,0);
+
+	if(!checkTerm()){
+		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+		bp_list[idx].code = code;
+		ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,(code & 0xffffffffffffff00) | 0xcc);
+	}
+
+	return;
+}
+
+void setreg(const char* regstr, const char* valstr){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No running process\n");
+		return;
+	}
+	char *pEnd;
+	unsigned long long val = strtoull(valstr,&pEnd,0);
+
+	struct user_regs_struct regs;
+	ptrace(PTRACE_GETREGS,child,0,&regs);
+	if(strcmp(regstr,"r15") == 0) regs.r15 = val;
+	else if(strcmp(regstr,"r14") == 0) regs.r14 = val;
+	else if(strcmp(regstr,"r13") == 0) regs.r13 = val;
+	else if(strcmp(regstr,"r12") == 0) regs.r12 = val;
+	else if(strcmp(regstr,"rbp") == 0) regs.rbp = val;
+	else if(strcmp(regstr,"rbx") == 0) regs.rbx = val;
+	else if(strcmp(regstr,"r11") == 0) regs.r11 = val;
+	else if(strcmp(regstr,"r10") == 0) regs.r10 = val;
+	else if(strcmp(regstr,"r9") == 0) regs.r9 = val;
+	else if(strcmp(regstr,"r8") == 0) regs.r8 = val;
+	else if(strcmp(regstr,"rax") == 0) regs.rax = val;
+	else if(strcmp(regstr,"rcx") == 0) regs.rbx = val;
+	else if(strcmp(regstr,"rdx") == 0) regs.rdx = val;
+	else if(strcmp(regstr,"rsi") == 0) regs.rsi = val;
+	else if(strcmp(regstr,"rdi") == 0) regs.rdi = val;
+	else if(strcmp(regstr,"orig_rax") == 0) regs.orig_rax = val;
+	else if(strcmp(regstr,"rip") == 0) regs.rip = val;
+	else if(strcmp(regstr,"cs") == 0) regs.cs = val;
+	else if(strcmp(regstr,"eflags") == 0) regs.eflags = val;
+	else if(strcmp(regstr,"rsp") == 0) regs.rsp = val;
+	else if(strcmp(regstr,"ss") == 0) regs.ss = val;
+	else if(strcmp(regstr,"fs_base") == 0) regs.fs_base = val;
+	else if(strcmp(regstr,"gs_base") == 0) regs.gs_base = val;
+	else if(strcmp(regstr,"ds") == 0) regs.ds = val;
+	else if(strcmp(regstr,"es") == 0) regs.es = val;
+	else if(strcmp(regstr,"fs") == 0) regs.fs = val;
+	else if(strcmp(regstr,"gs") == 0) regs.gs = val;
+	else{
+		fprintf(stderr,"** No register named %s\n", regstr);
+		return;
+	}
+
+	ptrace(PTRACE_SETREGS,child,0,&regs);
+	return;
+}
+
+void list(){
+	if(!is_state(CHILD_ANY)){
+		fprintf(stderr,"** No program is loaded\n");
+		return;
+	}
+	int i = 0;
+	for(i = 0; i < bp_len; i++){
+		if(bp_list[i].valid == 0)
+			continue;
+		fprintf(stderr,"%d: 0x%llx\n", i, bp_list[i].addr);
+	}
+	return;
+}
+
+void breakpoint(const char* addrstr){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No process is running\n");
+		return;
+	}
+	if(bp_cap == bp_len){
+		struct bp *tmp;
+		tmp = (struct bp*)malloc((bp_cap+BP_ADD)*sizeof(struct bp));
+		memcpy(tmp,bp_list,bp_cap*sizeof(struct bp));
+		free(bp_list);
+		bp_list = tmp;
+		bp_cap = bp_cap + BP_ADD;
+	}
+	unsigned long code;
+	char *pEnd;
+	unsigned long long addr = strtoull(addrstr,&pEnd,0);
+	if(addr == 0){
+		fprintf(stderr,"** Not a valid address\n");
+	}
+	code = ptrace(PTRACE_PEEKTEXT,child,addr,0);
+	bp_list[bp_len].addr = addr;
+	bp_list[bp_len].code = code;
+	bp_list[bp_len].valid = 1;
+	ptrace(PTRACE_POKETEXT,child,addr, (code & 0xffffffffffffff00) | 0xcc);
+	bp_len++;
+	return;
+}
+
+void delete(int idx){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No process running\n");
+		return;
+	}
+
+	unsigned long code;
+	code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+	code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
+	ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
+	bp_list[idx].valid = 0;
+	fprintf(stderr,"** delete breakpoint %d @ %llx\n",idx,code);
+}
+
 unsigned char handle_cmd(char *cmdbuf){
 	int argc = 0;
 	char *argv[3] = {};
@@ -203,12 +401,12 @@ unsigned char handle_cmd(char *cmdbuf){
 	if(argv[0] == NULL){
 		return 0;
 	}
-	else if(strcmp(argv[0],"help") == 0){
+	else if(strcmp(argv[0],"help") == 0 || strcmp(argv[0],"h") == 0){
 		help();
 	}
 	else if(strcmp(argv[0],"load") == 0){
 		if(argc < 2){
-			fprintf(stderr,"- load {path/to/a/program}: load a program\n");
+			fprintf(stderr,"** - load {path/to/a/program}: load a program\n");
 			return 0;
 		}
 		load_prog(argv[1]);
@@ -216,18 +414,50 @@ unsigned char handle_cmd(char *cmdbuf){
 	else if(strcmp(argv[0],"start") == 0){
 		start();
 	}
-	else if(strcmp(argv[0],"run") == 0){
+	else if(strcmp(argv[0],"run") == 0 || strcmp(argv[0],"r") == 0){
 		run();
 	}
-	else if(strcmp(argv[0],"cont") == 0){
+	else if(strcmp(argv[0],"cont") == 0 || strcmp(argv[0],"c") == 0){
 		cont();
 	}
-	else if(strcmp(argv[0],"vmmap") == 0){
+	else if(strcmp(argv[0],"vmmap") == 0 || strcmp(argv[0],"m") == 0){
 		vmmap();
 	}
 	else if(strcmp(argv[0],"getregs") == 0){
 		getregs();
 	}
+	else if(strcmp(argv[0],"get") == 0 || strcmp(argv[0],"g") == 0){
+		if(argc < 2){
+			fprintf(stderr,"** - get reg: get a single value from a register\n");
+			return 0;
+		}
+		getreg(argv[1]);
+	}
+	else if(strcmp(argv[0],"set") == 0 || strcmp(argv[0],"s") == 0){
+		if(argc < 3){
+			fprintf(stderr,"** - set reg val: get a single value to a register\n");
+			return 0;
+		}
+		setreg(argv[1],argv[2]);
+	}
+	else if(strcmp(argv[0],"si") == 0){
+		si();
+	}
+	else if(strcmp(argv[0],"list") == 0 || strcmp(argv[0],"l") == 0){
+		list();
+	}
+	else if(strcmp(argv[0],"break") == 0 || strcmp(argv[0],"b") == 0){
+		breakpoint(argv[1]);
+	}
+	else if(strcmp(argv[0],"delete") == 0){
+		if(argc < 2){
+			fprintf(stderr,"** - delete {break-point-id}: remove a break point\n");
+			return 0;
+		}
+		int idx = atoi(argv[1]);
+		delete(idx);
+	}
+
 
 	return argv[0] != NULL && (strcmp(argv[0],"exit") == 0 || strcmp(argv[0],"q") == 0);
 }
@@ -236,6 +466,10 @@ int main(int argc, char *argv[]) {
 	child_state = CHILD_NONE;
 	memset(filename,0,1024);
 	memset(scriptname,0,1024);
+	bp_list = (struct bp*)malloc(BP_ADD*sizeof(struct bp));
+	bp_cap = BP_ADD;
+	bp_len = 0;
+	memset(bp_list,0,BP_ADD*sizeof(struct bp));
 	int opt;
 	unsigned char file_given = 0;
 	unsigned char script_given = 0;

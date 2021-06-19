@@ -6,13 +6,13 @@
 	- [ ] disassmeble
 	- [ ] dump
 	- [x] exit
-	- [ ] get reg
+	- [x] get reg
 	- [x] getregs
 	- [x] help
 	- [ ] list
 	- [x] load
-	- [ ] run
+	- [x] run
 	- [x] vmmap
-	- [ ] set
-	- [ ] si
+	- [x] set
+	- [x] si
 	- [x] start
