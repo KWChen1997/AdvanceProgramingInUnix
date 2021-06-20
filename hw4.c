@@ -10,6 +10,7 @@ static Elf64_Ehdr *elf_hdr;
 static struct bp* bp_list;
 static int bp_cap;
 static int bp_len;
+static unsigned long long daddr;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -387,7 +388,45 @@ void delete(int idx){
 	code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
 	ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
 	bp_list[idx].valid = 0;
-	fprintf(stderr,"** delete breakpoint %d @ %llx\n",idx,code);
+	fprintf(stderr,"** delete breakpoint %d @ %lx\n",idx,code);
+}
+
+void dump(const char* addrstr){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No process running\n");
+		return;
+	}
+
+	unsigned long long addr = 0;
+	if(addrstr != NULL){
+		addr = strtoull(addrstr,NULL,0);
+	}
+	else{
+		addr = daddr;
+	}
+
+	int i = 0;
+	long code1;
+	long code2;
+	unsigned char *ptr1 = (unsigned char*) &code1;
+	unsigned char *ptr2 = (unsigned char*) &code2;
+	for(i = 0; i < 80; i+=16){
+		code1 = ptrace(PTRACE_PEEKTEXT,child,addr,0);
+		code2 = ptrace(PTRACE_PEEKTEXT,child,addr+8,0);
+		fprintf(stderr,"0x%llx: %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x  %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x",
+				addr,ptr1[0],ptr1[1],ptr1[2],ptr1[3],ptr1[4],ptr1[5],ptr1[6],ptr1[7]
+				,ptr2[0],ptr2[1],ptr2[2],ptr2[3],ptr2[4],ptr2[5],ptr2[6],ptr2[7]);
+		int j = 0;
+		for(j = 0; j < 8; j++){
+			if(!isprint(ptr1[j])) ptr1[j] = '.';
+			if(!isprint(ptr2[j])) ptr2[j] = '.';
+		}
+		fprintf(stderr," |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c|\n"
+				,ptr1[0],ptr1[1],ptr1[2],ptr1[3],ptr1[4],ptr1[5],ptr1[6],ptr1[7]
+				,ptr2[0],ptr2[1],ptr2[2],ptr2[3],ptr2[4],ptr2[5],ptr2[6],ptr2[7]);
+		addr += 16;
+	}	
+	daddr = addr;
 }
 
 unsigned char handle_cmd(char *cmdbuf){
@@ -457,13 +496,24 @@ unsigned char handle_cmd(char *cmdbuf){
 		int idx = atoi(argv[1]);
 		delete(idx);
 	}
+	else if(strcmp(argv[0],"dump") == 0 || strcmp(argv[0],"x") == 0){
+		if(argc < 2){
+			dump(NULL);
+		}
+		else{
+			dump(argv[1]);
+		}
+	}
 
 
 	return argv[0] != NULL && (strcmp(argv[0],"exit") == 0 || strcmp(argv[0],"q") == 0);
 }
 
+
+
 int main(int argc, char *argv[]) {
 	child_state = CHILD_NONE;
+	daddr = 0;
 	memset(filename,0,1024);
 	memset(scriptname,0,1024);
 	bp_list = (struct bp*)malloc(BP_ADD*sizeof(struct bp));
