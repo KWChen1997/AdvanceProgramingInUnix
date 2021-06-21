@@ -6,8 +6,11 @@ TARGET = hw4
 
 all:$(TARGET)
 
+%.o:%.c
+	$(CC) $(CFLAGS) -c $^ -o $@
+
 $(TARGET):$(OBJS)
-	$(CXX) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@
 
 clean:
 	rm $(TARGET) *.o
