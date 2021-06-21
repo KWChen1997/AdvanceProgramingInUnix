@@ -154,7 +154,7 @@ void cont(){
 	unsigned long code;
 	int idx;
 	ptrace(PTRACE_GETREGS,child,0,&regs);
-	if((idx = findbp(regs.rip-1)) >= 0){
+	if((idx = findbp(regs.rip)) >= 0){
 		ptrace(PTRACE_SINGLESTEP,child,0,0);
 		waitpid(child,&child_status,0);
 		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
@@ -166,7 +166,10 @@ void cont(){
 	
 
 	if(!checkTerm()){
+		ptrace(PTRACE_GETREGS,child,0,&regs);
+		regs.rip--;
 		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
+		ptrace(PTRACE_SETREGS,child,0,&regs);
 	}
 
 	return;
@@ -269,10 +272,12 @@ void si(){
 	unsigned long code;
 	ptrace(PTRACE_GETREGS,child,0,&regs);
 	idx = findbp(regs.rip);
-	if(idx >= 0){
-		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+	code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
+	if((code & 0x00000000000000ff) == 0xcc){
 		code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
-		ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
+		ptrace(PTRACE_POKETEXT,child,regs.rip,code);
+		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
+		return;
 	}
 
 	ptrace(PTRACE_SINGLESTEP,child,0,0);
@@ -448,8 +453,15 @@ void disasm(const char* addrstr){
 	codebyte = &code;
 
 	char *Eptr;
-	unsigned long long addr = strtoull(addrstr,&Eptr,0);
-	if(*Eptr){
+	unsigned long long addr;
+	if(addrstr){
+		addr = strtoull(addrstr,&Eptr,0);
+		if(*Eptr){
+			fprintf(stderr,"** Wrong address format\n");
+			return;
+		}
+	}
+	else {
 		addr = dismaddr;
 	}
 	csh handle;
@@ -485,10 +497,15 @@ void disasm(const char* addrstr){
 			ins_l--;
 	
 			cs_free(insn, count);
-		} else
+		} 
+		else if(ins_l == 10){
+			fprintf(stderr,"** Wrong alignment\n");
 			break;
+		}
 	}
 	cs_close(&handle);
+	if(ins_l == 0)
+		dismaddr = addr;
 	return;
 }
 
@@ -568,7 +585,10 @@ unsigned char handle_cmd(char *cmdbuf){
 		}
 	}
 	else if(strcmp(argv[0],"disasm") == 0 || strcmp(argv[0],"d") == 0){
-		if(argc < 2){
+		if(argc < 2 && dismaddr == 0){
+			fprintf(stderr,"** No addr given\n");
+		}
+		else if(argc < 2){
 			disasm(NULL);
 		}
 		else{
