@@ -1,4 +1,5 @@
 CC = gcc
+CXX = g++
 CFLAGS = -Wall -g
 OBJS = hw4.o
 TARGET = hw4
@@ -6,7 +7,7 @@ TARGET = hw4
 all:$(TARGET)
 
 $(TARGET):$(OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CXX) $(CFLAGS) $^ -o $@
 
 clean:
 	rm $(TARGET) *.o

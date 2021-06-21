@@ -377,7 +377,7 @@ void breakpoint(const char* addrstr){
 	return;
 }
 
-void del(int idx){
+void delete(int idx){
 	if(!is_state(CHILD_RUNNING)){
 		fprintf(stderr,"** No process running\n");
 		return;
@@ -427,10 +427,6 @@ void dump(const char* addrstr){
 		addr += 16;
 	}	
 	daddr = addr;
-}
-
-void disasm(const char* addrstr){
-	
 }
 
 unsigned char handle_cmd(char *cmdbuf){
@@ -498,7 +494,7 @@ unsigned char handle_cmd(char *cmdbuf){
 			return 0;
 		}
 		int idx = atoi(argv[1]);
-		del(idx);
+		delete(idx);
 	}
 	else if(strcmp(argv[0],"dump") == 0 || strcmp(argv[0],"x") == 0){
 		if(argc < 2){
