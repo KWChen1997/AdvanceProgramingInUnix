@@ -1,10 +1,7 @@
 *.log
-HW1/hw1
-HW1/_hw1
 *.txt
 *.swp
 *.so
-HW2/*.html*
 *.o
 *.out
 HW3/sample/*
