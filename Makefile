@@ -1,16 +1,17 @@
 CC = gcc
 CXX = g++
 CFLAGS = -Wall -g
+CLIB = -lcapstone
 OBJS = hw4.o
 TARGET = hw4
 
 all:$(TARGET)
 
 %.o:%.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $^ -o $@ $(CLIB)
 
 $(TARGET):$(OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ $(CLIB)
 
 clean:
 	rm $(TARGET) *.o

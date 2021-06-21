@@ -10,7 +10,8 @@ static Elf64_Ehdr *elf_hdr;
 static struct bp* bp_list;
 static int bp_cap;
 static int bp_len;
-static unsigned long long daddr;
+static unsigned long long dumpaddr;
+static unsigned long long dismaddr;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -153,7 +154,7 @@ void cont(){
 	unsigned long code;
 	int idx;
 	ptrace(PTRACE_GETREGS,child,0,&regs);
-	if((idx = findbp(regs.rip)) >= 0){
+	if((idx = findbp(regs.rip-1)) >= 0){
 		ptrace(PTRACE_SINGLESTEP,child,0,0);
 		waitpid(child,&child_status,0);
 		code = ptrace(PTRACE_PEEKTEXT,child,bp_list[idx].addr,0);
@@ -165,9 +166,6 @@ void cont(){
 	
 
 	if(!checkTerm()){
-		checkbp();
-		ptrace(PTRACE_GETREGS,child,0,&regs);
-		idx = findbp(regs.rip);
 		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
 	}
 
@@ -294,9 +292,13 @@ void setreg(const char* regstr, const char* valstr){
 		fprintf(stderr,"** No running process\n");
 		return;
 	}
-	char *pEnd;
-	unsigned long long val = strtoull(valstr,&pEnd,0);
+	char *Eptr;
+	unsigned long long val = strtoull(valstr,&Eptr,0);
 
+	if(*Eptr){
+		fprintf(stderr,"** Wrong integer format\n");
+		return;
+	}
 	struct user_regs_struct regs;
 	ptrace(PTRACE_GETREGS,child,0,&regs);
 	if(strcmp(regstr,"r15") == 0) regs.r15 = val;
@@ -363,9 +365,9 @@ void breakpoint(const char* addrstr){
 		bp_cap = bp_cap + BP_ADD;
 	}
 	unsigned long code;
-	char *pEnd;
-	unsigned long long addr = strtoull(addrstr,&pEnd,0);
-	if(addr == 0){
+	char *Eptr;
+	unsigned long long addr = strtoull(addrstr,&Eptr,0);
+	if(*Eptr){
 		fprintf(stderr,"** Not a valid address\n");
 	}
 	code = ptrace(PTRACE_PEEKTEXT,child,addr,0);
@@ -398,11 +400,16 @@ void dump(const char* addrstr){
 	}
 
 	unsigned long long addr = 0;
+	char *Eptr;
 	if(addrstr != NULL){
-		addr = strtoull(addrstr,NULL,0);
+		addr = strtoull(addrstr,&Eptr,0);
+		if(*Eptr){
+			fprintf(stderr,"** Wrong address format\n");
+			return;
+		}
 	}
 	else{
-		addr = daddr;
+		addr = dumpaddr;
 	}
 
 	int i = 0;
@@ -426,11 +433,63 @@ void dump(const char* addrstr){
 				,ptr2[0],ptr2[1],ptr2[2],ptr2[3],ptr2[4],ptr2[5],ptr2[6],ptr2[7]);
 		addr += 16;
 	}	
-	daddr = addr;
+	dumpaddr = addr;
 }
 
 void disasm(const char* addrstr){
+	if(!is_state(CHILD_RUNNING)){
+		fprintf(stderr,"** No process is running\n");
+		return;
+	}
+
+	unsigned char *codebyte;
+	long code;
+
+	codebyte = &code;
+
+	char *Eptr;
+	unsigned long long addr = strtoull(addrstr,&Eptr,0);
+	if(*Eptr){
+		addr = dismaddr;
+	}
+	csh handle;
+	cs_insn *insn;
+	int ins_l = 10;
+	size_t count;
+
+	if(cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+			return;
+
+	while(ins_l){
+		int bp_idx = -1;
+		if((bp_idx = findbp(addr)) >= 0 ){
+			code = bp_list[bp_idx].code;
+		}
+		else{
+			code = ptrace(PTRACE_PEEKTEXT,child,addr,0);
+		}
+
+		count = cs_disasm(handle, codebyte, 8, addr,0, &insn);
+
+		if (count > 0) {
+			fprintf(stderr,"%lx:",insn[0].address);
+			int j = 0;
+			for(j = 0; j < insn[0].size; j++){
+				fprintf(stderr," %2.2x",codebyte[j]);
+			}
+			while(j++ < 5){
+				fprintf(stderr,"   ");
+			}
+			printf("\t\t%s\t%s\n", insn[0].mnemonic, insn[0].op_str);
+			addr += insn[0].size;
+			ins_l--;
 	
+			cs_free(insn, count);
+		} else
+			break;
+	}
+	cs_close(&handle);
+	return;
 }
 
 unsigned char handle_cmd(char *cmdbuf){
@@ -508,6 +567,14 @@ unsigned char handle_cmd(char *cmdbuf){
 			dump(argv[1]);
 		}
 	}
+	else if(strcmp(argv[0],"disasm") == 0 || strcmp(argv[0],"d") == 0){
+		if(argc < 2){
+			disasm(NULL);
+		}
+		else{
+			disasm(argv[1]);
+		}
+	}
 
 
 	return argv[0] != NULL && (strcmp(argv[0],"exit") == 0 || strcmp(argv[0],"q") == 0);
@@ -517,7 +584,8 @@ unsigned char handle_cmd(char *cmdbuf){
 
 int main(int argc, char *argv[]) {
 	child_state = CHILD_NONE;
-	daddr = 0;
+	dumpaddr = 0;
+	dismaddr = 0;
 	memset(filename,0,1024);
 	memset(scriptname,0,1024);
 	bp_list = (struct bp*)malloc(BP_ADD*sizeof(struct bp));
