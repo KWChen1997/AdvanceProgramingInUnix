@@ -12,6 +12,8 @@ static int bp_cap;
 static int bp_len;
 static unsigned long long dumpaddr;
 static unsigned long long dismaddr;
+static char fdmp;
+static char fdism;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -439,6 +441,7 @@ void dump(const char* addrstr){
 		addr += 16;
 	}	
 	dumpaddr = addr;
+	fdmp = 0;
 }
 
 void disasm(const char* addrstr){
@@ -504,8 +507,10 @@ void disasm(const char* addrstr){
 		}
 	}
 	cs_close(&handle);
-	if(ins_l == 0)
+	if(ins_l == 0){
 		dismaddr = addr;
+		fdism = 0;
+	}
 	return;
 }
 
@@ -577,7 +582,10 @@ unsigned char handle_cmd(char *cmdbuf){
 		del(idx);
 	}
 	else if(strcmp(argv[0],"dump") == 0 || strcmp(argv[0],"x") == 0){
-		if(argc < 2){
+		if(argc < 2 && fdmp){
+			fprintf(stderr,"** No addr given\n");
+		}
+		else if(argc < 2){
 			dump(NULL);
 		}
 		else{
@@ -585,7 +593,7 @@ unsigned char handle_cmd(char *cmdbuf){
 		}
 	}
 	else if(strcmp(argv[0],"disasm") == 0 || strcmp(argv[0],"d") == 0){
-		if(argc < 2 && dismaddr == 0){
+		if(argc < 2 && fdism){
 			fprintf(stderr,"** No addr given\n");
 		}
 		else if(argc < 2){
@@ -606,6 +614,8 @@ int main(int argc, char *argv[]) {
 	child_state = CHILD_NONE;
 	dumpaddr = 0;
 	dismaddr = 0;
+	fdmp = 1;
+	fdism = 1;
 	memset(filename,0,1024);
 	memset(scriptname,0,1024);
 	bp_list = (struct bp*)malloc(BP_ADD*sizeof(struct bp));
@@ -657,6 +667,7 @@ int main(int argc, char *argv[]) {
 			if(handle_cmd(cmdbuf))
 				break;
 		}
+		fprintf(stderr,"Bye.\n");
 	}
 
 	while(script_given == 0){
