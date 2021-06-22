@@ -41,12 +41,16 @@ struct bp{
 	unsigned char valid;
 };
 
-void errquit();
+
+void errquit(const char*);
 void prompt();
 unsigned char checkTerm();
+int findbp(unsigned long long);
+void help();
 int load_prog(const char*);
 void start();
 void run();
+void checkbp();
 void cont();
 void vmmap();
 void printRegs(struct user_regs_struct);
@@ -54,4 +58,9 @@ void getregs();
 void getreg(const char*);
 void si();
 void setreg(const char*,const char*);
+void list();
+void breakpoint(const char*);
+void del(int);
+void dump(const char*);
+void disasm(const char*);
 unsigned char handle_cmd(char*);
