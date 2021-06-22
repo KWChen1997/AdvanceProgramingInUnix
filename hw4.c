@@ -23,12 +23,12 @@ void errquit(const char *msg) {
 }
 
 void prompt(){
-	fprintf(stderr,"sdb> ");
+	fprintf(stdout,"sdb> ");
 }
 
 unsigned char checkTerm(){
 	if(WIFEXITED(child_status)){
-		fprintf(stderr,"** child process %d terminated normally (code %d)\n", child, WEXITSTATUS(child_status));
+		fprintf(stdout,"** child process %d terminated normally (code %d)\n", child, WEXITSTATUS(child_status));
 		update_st(CHILD_LOADED);
 		return 1;
 	}
@@ -45,7 +45,7 @@ int findbp(unsigned long long addr){
 }
 
 void help(){
-	fprintf(stderr,
+	fprintf(stdout,
 "- break {instruction-address}: add a break point\n\
 - cont: continue execution\n\
 - delete {break-point-id}: remove a break point\n\
@@ -67,12 +67,12 @@ void help(){
 
 int load_prog(const char *filepath){
 	if(!is_state(CHILD_NONE)){
-		fprintf(stderr,"** program \'%s\' is already loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
+		fprintf(stdout,"** program \'%s\' is already loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
 		return -1;
 	}
 	// check file exist
 	if(access(filepath, F_OK) != 0){
-		fprintf(stderr,"** %s\n",strerror(errno));
+		fprintf(stdout,"** %s\n",strerror(errno));
 		return 0;
 	}
 
@@ -90,21 +90,21 @@ int load_prog(const char *filepath){
 	while(1){
 		count = read(fd,shdr,sizeof(Elf64_Shdr));
 		if(shdr->sh_flags & (SHF_ALLOC | SHF_EXECINSTR)){
-			fprintf(stderr,"** find text segment\n");
+			fprintf(stdout,"** find text segment\n");
 			tsbegin = shdr->sh_addr;
 			break;
 		}
 	}
 
 	close(fd);
-	fprintf(stderr,"** program \'%s\' loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
+	fprintf(stdout,"** program \'%s\' loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
 	update_st(CHILD_LOADED);
 	return 0;
 }
 
 void start(){
 	if(!is_state(CHILD_LOADED)){
-		fprintf(stderr,"** no program is loaded\n");
+		fprintf(stdout,"** no program is loaded\n");
 		return;
 	}
 
@@ -119,7 +119,7 @@ void start(){
 	}
 	else{
 		if(waitpid(child, &child_status, 0) < 0)	errquit("start: waitpid\n");
-		fprintf(stderr,"** pid %d\n",child); 
+		fprintf(stdout,"** pid %d\n",child); 
 		update_st(CHILD_RUNNING);
 		assert(WIFSTOPPED(child_status));
 		ptrace(PTRACE_SETOPTIONS,child,0,PTRACE_O_EXITKILL);
@@ -129,12 +129,12 @@ void start(){
 
 void run(){
 	if(!is_state(CHILD_ANY)){
-		fprintf(stderr,"** No program is loaded or running\n");
+		fprintf(stdout,"** No program is loaded or running\n");
 		return;
 	}
 
 	if(is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** program %s is already running\n", filename);
+		fprintf(stdout,"** program %s is already running\n", filename);
 	}
 	if(is_state(CHILD_LOADED)){
 		start();
@@ -164,7 +164,7 @@ void checkbp(){
 
 void cont(){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** process is not running\n");
+		fprintf(stdout,"** process is not running\n");
 		return;
 	}
 
@@ -186,7 +186,7 @@ void cont(){
 	if(!checkTerm()){
 		ptrace(PTRACE_GETREGS,child,0,&regs);
 		regs.rip--;
-		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
+		fprintf(stdout,"** breakpoint @\t%llx:\n",regs.rip);
 		ptrace(PTRACE_SETREGS,child,0,&regs);
 	}
 
@@ -195,7 +195,7 @@ void cont(){
 
 void vmmap(){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** process is not running\n");
+		fprintf(stdout,"** process is not running\n");
 		return;
 	}
 	
@@ -203,7 +203,7 @@ void vmmap(){
 	sprintf(proc_map,"/proc/%d/maps",child);
 	FILE *pm = fopen(proc_map,"r");
 	if(pm == NULL){
-		fprintf(stderr,"** process is not running\n");
+		fprintf(stdout,"** process is not running\n");
 		return;
 	}
 	char *buf;
@@ -214,12 +214,12 @@ void vmmap(){
 		token = strtok(buf," ");
 		while(token != NULL){
 			if(i != 2 && i != 3){
-				fprintf(stderr,"%s ",token);
+				fprintf(stdout,"%s ",token);
 			}
 			token = strtok(NULL," ");
 			i++;
 		}
-		fprintf(stderr,"\n");
+		fprintf(stdout,"\n");
 	}
 	free(buf);
 }
@@ -235,7 +235,7 @@ void printRegs(struct user_regs_struct regs){
 
 void getregs(){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No running process\n");
+		fprintf(stdout,"** No running process\n");
 		return;
 	}
 
@@ -248,7 +248,7 @@ void getregs(){
 
 void getreg(const char* regstr){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No running process\n");
+		fprintf(stdout,"** No running process\n");
 		return;
 	}
 	struct user_regs_struct regs;
@@ -282,16 +282,16 @@ void getreg(const char* regstr){
 	else if(strcmp(regstr,"fs") == 0) reg = regs.fs;
 	else if(strcmp(regstr,"gs") == 0) reg = regs.gs;
 	else{
-		fprintf(stderr,"** No register named %s\n", regstr);
+		fprintf(stdout,"** No register named %s\n", regstr);
 		return;
 	}
-	fprintf(stderr,"%s = %llu (0x%llx)\n", regstr, reg, reg);
+	fprintf(stdout,"%s = %llu (0x%llx)\n", regstr, reg, reg);
 	return;
 }
 
 void si(){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No running process\n");
+		fprintf(stdout,"** No running process\n");
 		return;
 	}
 	
@@ -304,7 +304,7 @@ void si(){
 	if((code & 0x00000000000000ff) == 0xcc){
 		code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
 		ptrace(PTRACE_POKETEXT,child,regs.rip,code);
-		fprintf(stderr,"** breakpoint @\t%llx:\n",regs.rip);
+		fprintf(stdout,"** breakpoint @\t%llx:\n",regs.rip);
 		return;
 	}
 
@@ -322,14 +322,14 @@ void si(){
 
 void setreg(const char* regstr, const char* valstr){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No running process\n");
+		fprintf(stdout,"** No running process\n");
 		return;
 	}
 	char *Eptr;
 	unsigned long long val = strtoull(valstr,&Eptr,0);
 
 	if(*Eptr){
-		fprintf(stderr,"** Wrong integer format\n");
+		fprintf(stdout,"** Wrong integer format\n");
 		return;
 	}
 	struct user_regs_struct regs;
@@ -362,7 +362,7 @@ void setreg(const char* regstr, const char* valstr){
 	else if(strcmp(regstr,"fs") == 0) regs.fs = val;
 	else if(strcmp(regstr,"gs") == 0) regs.gs = val;
 	else{
-		fprintf(stderr,"** No register named %s\n", regstr);
+		fprintf(stdout,"** No register named %s\n", regstr);
 		return;
 	}
 
@@ -372,21 +372,21 @@ void setreg(const char* regstr, const char* valstr){
 
 void list(){
 	if(!is_state(CHILD_ANY)){
-		fprintf(stderr,"** No program is loaded\n");
+		fprintf(stdout,"** No program is loaded\n");
 		return;
 	}
 	int i = 0;
 	for(i = 0; i < bp_len; i++){
 		if(bp_list[i].valid == 0)
 			continue;
-		fprintf(stderr,"%d: 0x%llx\n", i, bp_list[i].addr);
+		fprintf(stdout,"%d: 0x%llx\n", i, bp_list[i].addr);
 	}
 	return;
 }
 
 void breakpoint(const char* addrstr){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No process is running\n");
+		fprintf(stdout,"** No process is running\n");
 		return;
 	}
 	if(bp_cap == bp_len){
@@ -401,7 +401,7 @@ void breakpoint(const char* addrstr){
 	char *Eptr;
 	unsigned long long addr = strtoull(addrstr,&Eptr,0);
 	if(*Eptr){
-		fprintf(stderr,"** Not a valid address\n");
+		fprintf(stdout,"** Not a valid address\n");
 	}
 	code = ptrace(PTRACE_PEEKTEXT,child,addr,0);
 	bp_list[bp_len].addr = addr;
@@ -414,7 +414,7 @@ void breakpoint(const char* addrstr){
 
 void del(int idx){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No process running\n");
+		fprintf(stdout,"** No process running\n");
 		return;
 	}
 
@@ -423,12 +423,12 @@ void del(int idx){
 	code = (code & 0xffffffffffffff00) | (bp_list[idx].code & 0x00000000000000ff);
 	ptrace(PTRACE_POKETEXT,child,bp_list[idx].addr,code);
 	bp_list[idx].valid = 0;
-	fprintf(stderr,"** delete breakpoint %d @ %lx\n",idx,code);
+	fprintf(stdout,"** delete breakpoint %d @ %lx\n",idx,code);
 }
 
 void dump(const char* addrstr){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No process running\n");
+		fprintf(stdout,"** No process running\n");
 		return;
 	}
 
@@ -437,7 +437,7 @@ void dump(const char* addrstr){
 	if(addrstr != NULL){
 		addr = strtoull(addrstr,&Eptr,0);
 		if(*Eptr){
-			fprintf(stderr,"** Wrong address format\n");
+			fprintf(stdout,"** Wrong address format\n");
 			return;
 		}
 	}
@@ -453,7 +453,7 @@ void dump(const char* addrstr){
 	for(i = 0; i < 80; i+=16){
 		code1 = ptrace(PTRACE_PEEKTEXT,child,addr,0);
 		code2 = ptrace(PTRACE_PEEKTEXT,child,addr+8,0);
-		fprintf(stderr,"0x%llx: %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x  %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x",
+		fprintf(stdout,"0x%llx: %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x  %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x %2.2x",
 				addr,ptr1[0],ptr1[1],ptr1[2],ptr1[3],ptr1[4],ptr1[5],ptr1[6],ptr1[7]
 				,ptr2[0],ptr2[1],ptr2[2],ptr2[3],ptr2[4],ptr2[5],ptr2[6],ptr2[7]);
 		int j = 0;
@@ -461,7 +461,7 @@ void dump(const char* addrstr){
 			if(!isprint(ptr1[j])) ptr1[j] = '.';
 			if(!isprint(ptr2[j])) ptr2[j] = '.';
 		}
-		fprintf(stderr," |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c|\n"
+		fprintf(stdout," |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c|\n"
 				,ptr1[0],ptr1[1],ptr1[2],ptr1[3],ptr1[4],ptr1[5],ptr1[6],ptr1[7]
 				,ptr2[0],ptr2[1],ptr2[2],ptr2[3],ptr2[4],ptr2[5],ptr2[6],ptr2[7]);
 		addr += 16;
@@ -472,7 +472,7 @@ void dump(const char* addrstr){
 
 void disasm(const char* addrstr){
 	if(!is_state(CHILD_RUNNING)){
-		fprintf(stderr,"** No process is running\n");
+		fprintf(stdout,"** No process is running\n");
 		return;
 	}
 
@@ -486,7 +486,7 @@ void disasm(const char* addrstr){
 	if(addrstr){
 		addr = strtoull(addrstr,&Eptr,0);
 		if(*Eptr){
-			fprintf(stderr,"** Wrong address format\n");
+			fprintf(stdout,"** Wrong address format\n");
 			return;
 		}
 	}
@@ -513,13 +513,13 @@ void disasm(const char* addrstr){
 		count = cs_disasm(handle, codebyte, 8, addr,0, &insn);
 
 		if (count > 0) {
-			fprintf(stderr,"%lx:",insn[0].address);
+			fprintf(stdout,"%lx:",insn[0].address);
 			int j = 0;
 			for(j = 0; j < insn[0].size; j++){
-				fprintf(stderr," %2.2x",codebyte[j]);
+				fprintf(stdout," %2.2x",codebyte[j]);
 			}
 			while(j++ < 5){
-				fprintf(stderr,"   ");
+				fprintf(stdout,"   ");
 			}
 			printf("\t\t%s\t%s\n", insn[0].mnemonic, insn[0].op_str);
 			addr += insn[0].size;
@@ -528,7 +528,7 @@ void disasm(const char* addrstr){
 			cs_free(insn, count);
 		} 
 		else if(ins_l == 10){
-			fprintf(stderr,"** Wrong alignment\n");
+			fprintf(stdout,"** Wrong alignment\n");
 			break;
 		}
 	}
@@ -556,7 +556,7 @@ unsigned char handle_cmd(char *cmdbuf){
 	}
 	else if(strcmp(argv[0],"load") == 0){
 		if(argc < 2){
-			fprintf(stderr,"** - load {path/to/a/program}: load a program\n");
+			fprintf(stdout,"** - load {path/to/a/program}: load a program\n");
 			return 0;
 		}
 		load_prog(argv[1]);
@@ -578,14 +578,14 @@ unsigned char handle_cmd(char *cmdbuf){
 	}
 	else if(strcmp(argv[0],"get") == 0 || strcmp(argv[0],"g") == 0){
 		if(argc < 2){
-			fprintf(stderr,"** - get reg: get a single value from a register\n");
+			fprintf(stdout,"** - get reg: get a single value from a register\n");
 			return 0;
 		}
 		getreg(argv[1]);
 	}
 	else if(strcmp(argv[0],"set") == 0 || strcmp(argv[0],"s") == 0){
 		if(argc < 3){
-			fprintf(stderr,"** - set reg val: get a single value to a register\n");
+			fprintf(stdout,"** - set reg val: get a single value to a register\n");
 			return 0;
 		}
 		setreg(argv[1],argv[2]);
@@ -601,7 +601,7 @@ unsigned char handle_cmd(char *cmdbuf){
 	}
 	else if(strcmp(argv[0],"delete") == 0){
 		if(argc < 2){
-			fprintf(stderr,"** - delete {break-point-id}: remove a break point\n");
+			fprintf(stdout,"** - delete {break-point-id}: remove a break point\n");
 			return 0;
 		}
 		int idx = atoi(argv[1]);
@@ -609,7 +609,7 @@ unsigned char handle_cmd(char *cmdbuf){
 	}
 	else if(strcmp(argv[0],"dump") == 0 || strcmp(argv[0],"x") == 0){
 		if(argc < 2 && fdmp){
-			fprintf(stderr,"** No addr given\n");
+			fprintf(stdout,"** No addr given\n");
 		}
 		else if(argc < 2){
 			dump(NULL);
@@ -620,7 +620,7 @@ unsigned char handle_cmd(char *cmdbuf){
 	}
 	else if(strcmp(argv[0],"disasm") == 0 || strcmp(argv[0],"d") == 0){
 		if(argc < 2 && fdism){
-			fprintf(stderr,"** No addr given\n");
+			fprintf(stdout,"** No addr given\n");
 		}
 		else if(argc < 2){
 			disasm(NULL);
@@ -659,7 +659,7 @@ int main(int argc, char *argv[]) {
 				script_given = 1;
 				break;
 			default:
-				fprintf(stderr,"usage: ./hw4 [-s script] [program]\n");
+				fprintf(stdout,"usage: ./hw4 [-s script] [program]\n");
 				exit(-1);
 				break;
 		}
@@ -682,7 +682,7 @@ int main(int argc, char *argv[]) {
 	if(script_given){
 		// check file exist
 		if(access(scriptname, F_OK) != 0){
-			fprintf(stderr,"** %s\n",strerror(errno));
+			fprintf(stdout,"** %s\n",strerror(errno));
 			return 0;
 		}
 
@@ -693,7 +693,7 @@ int main(int argc, char *argv[]) {
 			if(handle_cmd(cmdbuf))
 				break;
 		}
-		fprintf(stderr,"Bye.\n");
+		fprintf(stdout,"Bye.\n");
 	}
 
 	while(script_given == 0){
