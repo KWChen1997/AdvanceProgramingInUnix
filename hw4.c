@@ -624,7 +624,7 @@ unsigned char handle_cmd(char *cmdbuf){
 		del(idx);
 	}
 	else if(strcmp(argv[0],"dump") == 0 || strcmp(argv[0],"x") == 0){
-		if(argc < 2 && fdmp){
+		if(argc < 2){
 			fprintf(stdout,"** No addr given\n");
 		}
 		else if(argc < 2){
@@ -635,7 +635,7 @@ unsigned char handle_cmd(char *cmdbuf){
 		}
 	}
 	else if(strcmp(argv[0],"disasm") == 0 || strcmp(argv[0],"d") == 0){
-		if(argc < 2 && fdism){
+		if(argc < 2){
 			fprintf(stdout,"** No addr given\n");
 		}
 		else if(argc < 2){
