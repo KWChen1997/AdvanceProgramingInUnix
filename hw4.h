@@ -10,6 +10,8 @@
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <capstone/capstone.h>
 
 #define BP_ADD 1000

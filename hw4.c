@@ -6,7 +6,7 @@ static int child_status;
 static char filename[1024];
 static char scriptname[1024];
 static pid_t child;
-static Elf64_Ehdr *elf_hdr;
+static Elf64_Ehdr *ehdr;
 static struct bp* bp_list;
 static int bp_cap;
 static int bp_len;
@@ -16,6 +16,8 @@ static char fdmp;
 static char fdism;
 static unsigned long long tsbegin;
 static unsigned long long tsend;
+static int prog_fd;
+static char *elf_ptr;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -67,7 +69,7 @@ void help(){
 
 int load_prog(const char *filepath){
 	if(!is_state(CHILD_NONE)){
-		fprintf(stdout,"** program \'%s\' is already loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
+		fprintf(stdout,"** program \'%s\' is already loaded. entry point 0x%lx\n", filename, ehdr->e_entry);
 		return -1;
 	}
 	// check file exist
@@ -78,26 +80,31 @@ int load_prog(const char *filepath){
 
 	// save the name of the loaded program
 	strcpy(filename,filepath);
+	struct stat st;
+	stat(filename,&st);
 
 	// load elf
 	Elf64_Shdr *shdr;
-	elf_hdr = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
-	shdr = (Elf64_Shdr*)malloc(sizeof(Elf64_Shdr));
 
-	int fd = open(filename, O_RDONLY);
-	ssize_t count = read(fd,elf_hdr,sizeof(Elf64_Ehdr));
-	lseek(fd,elf_hdr->e_shoff,SEEK_SET);
-	while(1){
-		count = read(fd,shdr,sizeof(Elf64_Shdr));
-		if(shdr->sh_flags & (SHF_ALLOC | SHF_EXECINSTR)){
-			fprintf(stdout,"** find text segment\n");
-			tsbegin = shdr->sh_addr;
+	prog_fd = open(filename, O_RDONLY);
+	elf_ptr = mmap(0,st.st_size,PROT_READ,MAP_PRIVATE,prog_fd,0);
+
+	ehdr = (Elf64_Ehdr*)elf_ptr;
+	shdr = (Elf64_Shdr*)(elf_ptr + ehdr->e_shoff);
+	
+	int i = 0;
+	Elf64_Shdr *sh_strtab = &shdr[ehdr->e_shstrndx];
+	char *sh_strtab_p = elf_ptr + sh_strtab->sh_offset;
+	for(i = 0; i < ehdr->e_shnum; i++){
+		if(strcmp(sh_strtab_p + shdr[i].sh_name,".text") == 0){
+			tsbegin = shdr[i].sh_addr;
+			tsend = tsbegin + shdr[i].sh_size;
+			fprintf(stdout,"** '.text' section @ 0x%llx - 0x%llx\n",tsbegin,tsend);
 			break;
 		}
 	}
-
-	close(fd);
-	fprintf(stdout,"** program \'%s\' loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
+	
+	fprintf(stdout,"** program \'%s\' loaded. entry point 0x%lx\n", filename, ehdr->e_entry);
 	update_st(CHILD_LOADED);
 	return 0;
 }
@@ -493,6 +500,12 @@ void disasm(const char* addrstr){
 	else {
 		addr = dismaddr;
 	}
+
+	if(addr < tsbegin || addr >= tsend){
+		fprintf(stdout,"** Address %llx out of .text segment\n",addr);
+		return;
+	}
+
 	csh handle;
 	cs_insn *insn;
 	int ins_l = 10;
@@ -502,6 +515,9 @@ void disasm(const char* addrstr){
 			return;
 
 	while(ins_l){
+		if(addr < tsbegin || addr >= tsend){
+			break;
+		}
 		int bp_idx = -1;
 		if((bp_idx = findbp(addr)) >= 0 ){
 			code = bp_list[bp_idx].code;
