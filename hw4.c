@@ -14,6 +14,8 @@ static unsigned long long dumpaddr;
 static unsigned long long dismaddr;
 static char fdmp;
 static char fdism;
+static unsigned long long tsbegin;
+static unsigned long long tsend;
 
 void errquit(const char *msg) {
 	perror(msg);
@@ -78,9 +80,23 @@ int load_prog(const char *filepath){
 	strcpy(filename,filepath);
 
 	// load elf
+	Elf64_Shdr *shdr;
 	elf_hdr = (Elf64_Ehdr*)malloc(sizeof(Elf64_Ehdr));
+	shdr = (Elf64_Shdr*)malloc(sizeof(Elf64_Shdr));
+
 	int fd = open(filename, O_RDONLY);
 	ssize_t count = read(fd,elf_hdr,sizeof(Elf64_Ehdr));
+	lseek(fd,elf_hdr->e_shoff,SEEK_SET);
+	while(1){
+		count = read(fd,shdr,sizeof(Elf64_Shdr));
+		if(shdr->sh_flags & (SHF_ALLOC | SHF_EXECINSTR)){
+			fprintf(stderr,"** find text segment\n");
+			tsbegin = shdr->sh_addr;
+			break;
+		}
+	}
+
+	close(fd);
 	fprintf(stderr,"** program \'%s\' loaded. entry point 0x%lx\n", filename, elf_hdr->e_entry);
 	update_st(CHILD_LOADED);
 	return 0;
@@ -192,8 +208,18 @@ void vmmap(){
 	}
 	char *buf;
 	size_t bufsize = 0;
+	char *token;
 	while(getline(&buf,&bufsize,pm) > 0){
-		fprintf(stderr,"%s",buf);
+		int i = 0;
+		token = strtok(buf," ");
+		while(token != NULL){
+			if(i != 2 && i != 3){
+				fprintf(stderr,"%s ",token);
+			}
+			token = strtok(NULL," ");
+			i++;
+		}
+		fprintf(stderr,"\n");
 	}
 	free(buf);
 }
