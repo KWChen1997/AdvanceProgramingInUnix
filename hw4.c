@@ -653,6 +653,8 @@ unsigned char handle_cmd(char *cmdbuf){
 
 
 int main(int argc, char *argv[]) {
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 	child_state = CHILD_NONE;
 	dumpaddr = 0;
 	dismaddr = 0;
